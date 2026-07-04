@@ -1,0 +1,13 @@
+/* Self-hosted variable fonts (Fontsource). Imported once from main.tsx before
+   global.css so the @font-face rules are registered ahead of the design tokens
+   that reference them. Vite hashes and bundles the woff2 files — no runtime
+   network, no CDN, GitHub Pages friendly. Roman + italic axes for each family:
+   Inter (sans UI/headings), Source Serif 4 (serif reading body), JetBrains Mono
+   (code). index.css pulls the default axis (opsz for Inter/Serif, wght for Mono);
+   the *-italic sheets add the italic faces used by emphasis in prose. */
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource-variable/inter/wght-italic.css";
+@import "@fontsource-variable/source-serif-4/index.css";
+@import "@fontsource-variable/source-serif-4/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+@import "@fontsource-variable/jetbrains-mono/wght-italic.css";

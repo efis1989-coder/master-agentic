@@ -1,0 +1,73 @@
+.page {
+  max-width: var(--maxw-reading);
+}
+
+.summary {
+  margin: var(--space-4) 0 var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.big {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub {
+  color: var(--color-muted);
+}
+
+.counts {
+  margin: var(--space-2) 0 0;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.h2 {
+  font-size: 1.05rem;
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+.caption {
+  margin: 0 0 var(--space-3);
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  max-width: 60ch;
+}
+
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.barHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.barLabel {
+  font-size: 0.9rem;
+}
+
+.barCount {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}

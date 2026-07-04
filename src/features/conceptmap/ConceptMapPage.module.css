@@ -1,0 +1,220 @@
+/* Per-mastery hues. Applied as a node's left rail + legend dot; they sit on the
+   neutral surface token, so they read on both light and dark themes. */
+.page {
+  --level-unread: var(--color-border);
+  --level-reading: #d98a1f;
+  --level-read: #2f6df6;
+  --level-quizzed: #7c5cff;
+  --level-mastered: #21a366;
+}
+
+.header {
+  margin-bottom: var(--space-4);
+}
+
+.caption {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  max-width: 68ch;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  list-style: none;
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.legendItem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.legendLabel {
+  font-weight: 600;
+}
+
+.legendDesc {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.dot {
+  align-self: center;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--dot);
+}
+
+.dot[data-level="unread"] {
+  --dot: var(--level-unread);
+}
+.dot[data-level="reading"] {
+  --dot: var(--level-reading);
+}
+.dot[data-level="read"] {
+  --dot: var(--level-read);
+}
+.dot[data-level="quizzed"] {
+  --dot: var(--level-quizzed);
+}
+.dot[data-level="mastered"] {
+  --dot: var(--level-mastered);
+}
+
+.threads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+}
+
+.threadsLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  margin-right: var(--space-1);
+}
+
+.chip {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.chip:hover {
+  border-color: var(--color-accent);
+}
+
+.chipOn {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.part {
+  margin-bottom: var(--space-5);
+}
+
+.partName {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--rail);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: border-color 0.15s, transform 0.05s;
+}
+
+.node:hover {
+  text-decoration: none;
+  border-color: var(--rail);
+  transform: translateY(-1px);
+}
+
+.node[data-level="unread"] {
+  --rail: var(--level-unread);
+}
+.node[data-level="reading"] {
+  --rail: var(--level-reading);
+}
+.node[data-level="read"] {
+  --rail: var(--level-read);
+}
+.node[data-level="quizzed"] {
+  --rail: var(--level-quizzed);
+}
+.node[data-level="mastered"] {
+  --rail: var(--level-mastered);
+}
+
+.nodeHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.nodeNum {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.nodeLevel {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--rail);
+  font-weight: 700;
+}
+
+.nodeTitle {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.nodeDomain {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.prereqs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.prereqLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+.prereq {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}

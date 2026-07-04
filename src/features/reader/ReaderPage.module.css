@@ -1,0 +1,119 @@
+.header {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.title {
+  margin: var(--space-1) 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--fs-h1);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.themes {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.themeTag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-muted);
+}
+
+.prereq {
+  margin-top: var(--space-2);
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+
+.prereq a {
+  color: var(--color-accent);
+}
+
+.sectionAnchor {
+  scroll-margin-top: var(--space-3);
+}
+
+.section {
+  margin: var(--space-4) 0;
+}
+
+/* The sticky mobile topbar overlays the page, so offset anchor jumps by its height. */
+@media (max-width: 860px) {
+  .sectionAnchor {
+    scroll-margin-top: 3.75rem;
+  }
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.pagerLink {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 45%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.pagerLink:hover {
+  background: var(--color-surface-2);
+}
+
+.pagerNext {
+  text-align: right;
+  margin-left: auto;
+}
+
+.pagerDir {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+.pagerTitle {
+  font-size: 0.88rem;
+  font-weight: 600;
+}

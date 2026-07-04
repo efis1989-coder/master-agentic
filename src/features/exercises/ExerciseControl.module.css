@@ -1,0 +1,52 @@
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.doneRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.answer > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.answerLabel {
+  display: block;
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.answerInput {
+  width: 100%;
+  min-height: 6rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.savedTag {
+  font-size: 0.78rem;
+  color: var(--color-accent);
+}

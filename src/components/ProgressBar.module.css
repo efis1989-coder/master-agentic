@@ -1,0 +1,28 @@
+.bar {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  height: 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+/* Track (Chrome/Safari). Firefox uses the element background above. */
+.bar::-webkit-progress-bar {
+  background: var(--color-surface-2);
+  border-radius: 999px;
+}
+
+/* Fill */
+.bar::-webkit-progress-value {
+  background: var(--color-accent);
+  border-radius: 999px;
+}
+
+.bar::-moz-progress-bar {
+  background: var(--color-accent);
+  border-radius: 999px;
+}

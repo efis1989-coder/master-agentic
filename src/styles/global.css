@@ -1,0 +1,567 @@
+/* Design tokens + base reset. Expanded by the reader milestone (layout, dark mode). */
+:root {
+  /* Type families. Inter (sans) drives UI + prose headings; Source Serif 4 is the
+     reading body face; JetBrains Mono is code. All self-hosted via Fontsource
+     (see fonts.css), each falling back to a native stack if the woff2 fails. */
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-serif: "Source Serif 4 Variable", Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Reading measures. --reading-scale is written on <html> by the text-size control
+     (and by the pre-paint script in index.html) so only prose resizes; the fluid
+     base lands ~17–19px. Headings use a modular ~1.25 scale on top of that. */
+  --reading-scale: 1;
+  --reading-font-size: calc(clamp(1.05rem, 1rem + 0.35vw, 1.1875rem) * var(--reading-scale));
+  --reading-line: 1.7;
+
+  --fs-h1: clamp(1.85rem, 1.6rem + 1.2vw, 2.35rem);
+  --fs-h2: clamp(1.45rem, 1.3rem + 0.7vw, 1.7rem);
+  --fs-h3: 1.3rem;
+  --fs-h4: 1.1rem;
+
+  /* Light theme (default). Dark values live in the two blocks below: an explicit
+     [data-theme="dark"] selection and a prefers-color-scheme fallback that applies
+     only when the reader has not pinned light. The choice persists in localStorage
+     and is set on <html> before first paint by the inline script in index.html, so
+     there is no flash of the wrong theme on load. */
+  color-scheme: light;
+  --color-bg: #ffffff;
+  --color-surface: #f6f7f9;
+  --color-surface-2: #eceef2;
+  --color-border: #e2e5ea;
+  --color-text: #1a1d23;
+  --color-muted: #5b6472;
+  --color-accent: #2f6df6;
+  --color-accent-weak: #e8f0fe;
+  --color-accent-soft: #e8f0fe;
+  --color-accent-strong: #1f57d6;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #c0362c;
+
+  --radius: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+  --space-6: 64px;
+  --maxw-reading: 70ch;
+  --sidebar-w: 300px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+
+  /* Highlight tints (notes). Dark variants override in the two theme blocks. */
+  --hl-yellow: #fff1a8;
+  --hl-green: #b9f0c8;
+  --hl-blue: #bcdcff;
+  --hl-pink: #ffc7dd;
+
+  /* Callout accent hues (GFM [!NOTE]/[!TIP]/… blockquotes). Note/caution reuse
+     theme colors; the rest are light-mode picks. Dark overrides in both blocks. */
+  --cl-note: var(--color-accent);
+  --cl-tip: #1f9d55;
+  --cl-important: #8250df;
+  --cl-warning: #c98a00;
+  --cl-caution: var(--color-danger);
+
+  /* Syntax palette (highlight.js). Driven by vars so both themes stay legible;
+     values below are the light theme. Dark variants override in both blocks. */
+  --code-keyword: #a626a4;
+  --code-string: #50a14f;
+  --code-number: #b76b01;
+  --code-function: #4078f2;
+  --code-title: #c18401;
+  --code-comment: var(--color-muted);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0f1115;
+  --color-surface: #171a21;
+  --color-surface-2: #1f232c;
+  --color-border: #262b34;
+  --color-text: #e6e9ef;
+  --color-muted: #9aa4b2;
+  --color-accent: #6ea0ff;
+  --color-accent-weak: #1b2740;
+  --color-accent-soft: #1b2740;
+  --color-accent-strong: #8fb6ff;
+  --color-accent-contrast: #0f1115;
+  --color-danger: #ff6b5e;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --hl-yellow: #6b5d12;
+  --hl-green: #1f5236;
+  --hl-blue: #1d3f66;
+  --hl-pink: #5f2440;
+  --cl-tip: #3fb950;
+  --cl-important: #a371f7;
+  --cl-warning: #d29922;
+  --code-keyword: #c678dd;
+  --code-string: #98c379;
+  --code-number: #d19a66;
+  --code-function: #61afef;
+  --code-title: #e5c07b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #0f1115;
+    --color-surface: #171a21;
+    --color-surface-2: #1f232c;
+    --color-border: #262b34;
+    --color-text: #e6e9ef;
+    --color-muted: #9aa4b2;
+    --color-accent: #6ea0ff;
+    --color-accent-weak: #1b2740;
+    --color-accent-soft: #1b2740;
+    --color-accent-strong: #8fb6ff;
+    --color-accent-contrast: #0f1115;
+    --color-danger: #ff6b5e;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --hl-yellow: #6b5d12;
+    --hl-green: #1f5236;
+    --hl-blue: #1d3f66;
+    --hl-pink: #5f2440;
+    --cl-tip: #3fb950;
+    --cl-important: #a371f7;
+    --cl-warning: #d29922;
+    --code-keyword: #c678dd;
+    --code-string: #98c379;
+    --code-number: #d19a66;
+    --code-function: #61afef;
+    --code-title: #e5c07b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Smooth in-page anchor jumps (mini-ToC, cross-references), disabled for readers
+   who prefer reduced motion. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* UI chrome stays sans at a fixed 16px; only the reading column scales. */
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+/* ---- Reading column typography (rendered Markdown) ----
+   Serif body at the fluid reading size, generous line-height, and a sans modular
+   scale for structural headings. text-wrap: pretty avoids orphans in prose. */
+.markdown-body {
+  font-family: var(--font-serif);
+  font-size: var(--reading-font-size);
+  line-height: var(--reading-line);
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body p {
+  margin: 1.3em 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 1.3em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-body li {
+  margin: 0.45em 0;
+}
+
+.markdown-body li::marker {
+  color: var(--color-muted);
+}
+
+/* Tighten nested lists so sub-items don't inherit the full paragraph gap. */
+.markdown-body li > ul,
+.markdown-body li > ol {
+  margin: 0.35em 0;
+}
+
+.markdown-body strong {
+  font-weight: 650;
+}
+
+/* Prose links: quiet dotted-weight underline that solidifies on hover. */
+.markdown-body a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+.markdown-body a:hover {
+  text-decoration-color: var(--color-accent);
+}
+
+/* Note highlights: <mark> wrappers inserted imperatively over rendered prose. */
+mark.note-mark {
+  color: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 1px;
+  background: var(--hl-yellow);
+}
+
+mark.note-mark[data-note-color="yellow"] {
+  background: var(--hl-yellow);
+}
+mark.note-mark[data-note-color="green"] {
+  background: var(--hl-green);
+}
+mark.note-mark[data-note-color="blue"] {
+  background: var(--hl-blue);
+}
+mark.note-mark[data-note-color="pink"] {
+  background: var(--hl-pink);
+}
+
+/* Auto-linkified "Ch. X.Y" cross-references (rehypeChapterLinks). */
+.markdown-body .chapter-xref {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+/* Headings switch to the sans face for structural contrast against serif prose.
+   Spacing is biased above each heading so sections read as distinct blocks. */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-family: var(--font-sans);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.markdown-body h1 {
+  font-size: var(--fs-h1);
+  margin: 0 0 0.6em;
+  line-height: 1.15;
+}
+
+.markdown-body h2 {
+  font-size: var(--fs-h2);
+  margin: 2.4em 0 0.8em;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  line-height: 1.25;
+}
+
+.markdown-body h3 {
+  font-size: var(--fs-h3);
+  margin: 1.9em 0 0.6em;
+  line-height: 1.3;
+}
+
+.markdown-body h4 {
+  font-size: var(--fs-h4);
+  margin: 1.6em 0 0.5em;
+  line-height: 1.35;
+}
+
+.markdown-body blockquote {
+  margin: 1.5em 0;
+  padding: 0.4em var(--space-3);
+  border-left: 3px solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  color: var(--color-muted);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.markdown-body blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body :not(pre) > code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.markdown-body pre {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.9em;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  background: none;
+  font-family: var(--font-mono);
+}
+
+.markdown-body table {
+  width: 100%;
+  margin: var(--space-4) 0;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 0.55em 0.75em;
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+/* Sans bold headers with a heavier bottom rule; zebra body rows for scanability. */
+.markdown-body th {
+  font-family: var(--font-sans);
+  font-weight: 650;
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.markdown-body tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram {
+  margin: var(--space-4) 0;
+  text-align: center;
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ---- highlight.js token theme (rehype-highlight), driven by --code-* tokens
+   so light and dark both stay legible. ---- */
+.hljs-comment,
+.hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: var(--code-keyword);
+}
+
+.hljs-string,
+.hljs-section,
+.hljs-attribute,
+.hljs-literal,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-addition {
+  color: var(--code-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-attr,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-link {
+  color: var(--code-number);
+}
+
+.hljs-title,
+.hljs-class .hljs-title,
+.hljs-doctag,
+.hljs-meta {
+  color: var(--code-title);
+}
+
+.hljs-title.function_,
+.hljs-function .hljs-title {
+  color: var(--code-function);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+.hljs-deletion {
+  color: var(--color-danger);
+}
+
+/* ---- Callouts (GFM [!NOTE]/[!TIP]/[!IMPORTANT]/[!WARNING]/[!CAUTION]) ----
+   Rendered by Callout.tsx from a marker blockquote. --cl is set per-type below
+   and drives a tinted panel + colored title; the body inherits prose styling. */
+.callout {
+  --cl: var(--cl-note);
+  margin: 1.5em 0;
+  padding: 0.9em var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--cl) 35%, var(--color-border));
+  border-left: 3px solid var(--cl);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--cl) 10%, var(--color-bg));
+}
+
+.callout-note {
+  --cl: var(--cl-note);
+}
+.callout-tip {
+  --cl: var(--cl-tip);
+}
+.callout-important {
+  --cl: var(--cl-important);
+}
+.callout-warning {
+  --cl: var(--cl-warning);
+}
+.callout-caution {
+  --cl: var(--cl-caution);
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.3em;
+  font-family: var(--font-sans);
+  font-weight: 650;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  color: var(--cl);
+}
+
+.callout-icon {
+  flex: none;
+  display: inline-flex;
+}
+
+.callout-body > :first-child {
+  margin-top: 0;
+}
+
+.callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Fenced code block chrome (CodeBlock.tsx): language label + Copy button ----
+   Styled here (not a module) so the inner <pre> can override the shared
+   `.markdown-body pre` box via the higher-specificity `.codeblock pre` selector. */
+.codeblock {
+  margin: var(--space-3) 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.codeblock-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.3em 0.7em;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-2) 55%, var(--color-surface));
+}
+
+.codeblock-lang {
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.codeblock-copy {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  padding: 0.2em 0.6em;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.codeblock-copy:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+
+.markdown-body .codeblock pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}

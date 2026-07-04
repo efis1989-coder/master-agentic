@@ -1,0 +1,36 @@
+/* Thin scroll-progress bar pinned to the very top of the reading column. On
+   desktop it starts after the fixed sidebar; on mobile it spans full width and
+   sits above the topbar. Width is driven by scaleX written from JS, so the only
+   animatable property here is the transform. */
+
+.track {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-w);
+  right: 0;
+  height: 3px;
+  z-index: 60;
+  background: transparent;
+  pointer-events: none;
+}
+
+.bar {
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--color-accent);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar {
+    transition: transform 0.08s linear;
+  }
+}
+
+@media (max-width: 860px) {
+  .track {
+    left: 0;
+    z-index: 60;
+  }
+}

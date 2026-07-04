@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Production Agentic Systems — Training</title>
+    <script>
+      // Pre-paint init: pin <html data-theme> and --reading-scale from saved
+      // preferences so the right palette and text size are live before React
+      // mounts (no flash). "system"/unset theme stores nothing and falls through
+      // to the prefers-color-scheme rules in global.css. Keep the keys and the
+      // scale map in sync with theme.ts and textSize.ts.
+      (function () {
+        try {
+          var t = localStorage.getItem("agentic-theme");
+          if (t === "light" || t === "dark") {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+        } catch (e) {}
+        try {
+          var s = localStorage.getItem("agentic-text-scale");
+          var map = { s: "0.94", m: "1", l: "1.08", xl: "1.18" };
+          if (map[s]) {
+            document.documentElement.style.setProperty("--reading-scale", map[s]);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
