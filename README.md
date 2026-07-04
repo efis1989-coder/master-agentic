@@ -2,7 +2,7 @@
 
 A comprehensive, failure-driven curriculum for expert-level competence in designing, shipping, and operating agentic AI systems in production.
 
-**Live course:** https://efishachaf.github.io/Master-agentic-systems-on-prod/
+**Live course:** https://efis1989-coder.github.io/master-agentic/
 
 ---
 
@@ -25,7 +25,7 @@ Master production-grade agentic systems through a first-principles, spiral curri
 
 ### On Mobile or Web (No Installation)
 
-1. **Open the course**: [https://efishachaf.github.io/Master-agentic-systems-on-prod/](https://efishachaf.github.io/Master-agentic-systems-on-prod/)
+1. **Open the course**: [https://efis1989-coder.github.io/master-agentic/](https://efis1989-coder.github.io/master-agentic/)
 2. **Works on**: Desktop, tablet, mobile (responsive design)
 3. **Track progress locally**: Your progress, bookmarks, and notes are saved in your browser
 
@@ -145,7 +145,7 @@ Content chapters are Markdown files in `content/`. Each chapter includes:
 ## Sharing & Deployment
 
 ### Share the Link
-Course is live at: **https://efishachaf.github.io/Master-agentic-systems-on-prod/**
+Course is live at: **https://efis1989-coder.github.io/master-agentic/**
 
 Share this URL with anyone—works on desktop, tablet, or mobile.
 
