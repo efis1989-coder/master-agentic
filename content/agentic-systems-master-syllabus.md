@@ -1,5 +1,5 @@
 # Production Agentic Systems — Mastery Curriculum
-## Master Syllabus v1.1
+## Master Syllabus v1.2
 
 *A first-principles, failure-driven curriculum for expert-level competence in designing, shipping, and operating agentic AI systems in production — at the depth expected of a top certified practitioner and platform leader.*
 
@@ -27,12 +27,12 @@ Structured like a professional certification exam blueprint: six domains, weight
 
 | Domain | Weight | Competency statement |
 |---|---|---|
-| D1 — LLM & Agent Fundamentals | 10% | Explain inference mechanics, context economics, and tool-calling anatomy well enough to predict failure modes from first principles |
+| D1 — LLM & Agent Fundamentals | 10% | Explain inference mechanics, context economics, and tool-calling anatomy well enough to predict failure modes from first principles; specify tasks from discovered work — not documented process — with a gradeable definition of done |
 | D2 — Agentic Building Blocks | 15% | Select and justify tools/MCP, retrieval, memory, control loops, and orchestration topologies for a given task profile |
 | D3 — Systems Architecture | 20% | Draw the deterministic/agentic boundary; design state, HITL, and containment for correctness under partial failure |
 | D4 — Production Operations | 30% | Own evals, observability, reliability, cost, and change management as continuous disciplines with quantified gates |
 | D5 — Security, Governance & Compliance | 15% | Threat-model agentic systems; design defenses and audit/compliance posture (EU AI Act, NIST AI RMF, OWASP) |
-| D6 — Advanced & Frontier | 10% | Reason about multi-agent coordination, long-horizon operation, self-improvement loops, and agent economics |
+| D6 — Advanced & Frontier | 10% | Reason about multi-agent coordination, long-horizon operation, self-improvement loops, agent economics, and fleet-scale platform and portfolio governance |
 
 **Mastery bar per domain:** pass the domain's scenario questions ≥85%, complete its design exercises to rubric, and survive a simulated oral defense (Section 9).
 
@@ -40,7 +40,7 @@ Structured like a professional certification exam blueprint: six domains, weight
 
 ## 3. Learning Architecture
 
-**Chapter template (applied to all 27 chapters):**
+**Chapter template (applied to all 32 chapters):**
 
 1. **Failure story** — the production incident class this chapter exists to prevent
 2. **Mental model** — first-principles derivation, minimal vocabulary
@@ -118,6 +118,33 @@ Chapters within a part are mostly independent; parts are strictly ordered except
 **Canon:** METR research on long-horizon task reliability; Anthropic *Building Effective Agents* (guardrails and simplicity); Hamel Husain on error analysis before metrics.
 
 **Design exercise:** for a 12-step agent with measured 97% per-step reliability, compute end-to-end success; then redesign the flow with two checkpoints and one human gate and recompute effective reliability. State the cost of the added latency.
+
+---
+
+### Chapter 0.3 — From Process to Specification: Task Discovery, Expert Knowledge & the Definition of Done
+
+**Failure story:** an agent passes a 94% eval authored from the department's 40-page SOP, then hits a 31% adjuster override rate in production — and 80% of the overrides are correct. The SOP described a process nobody followed; agent and eval certified the same fiction. Rework: 14 engineer-weeks.
+
+**Objectives:** specify agent tasks from evidence of work-as-done, not work-as-imagined; extract expert judgment with engineering-grade elicitation; write definitions of done that survive nondeterminism.
+
+**Core topics:**
+- The specification stack: business intent → task inventory → task specification → gradeable acceptance criteria → verifier; every skipped layer is improvised by the model at runtime
+- Task discovery: work-as-imagined vs. work-as-done; evidence sources in descending trustworthiness — system traces, observation, then documents and interviews
+- Portfolio triage on value × autonomy feasibility × verifiability; the best first agent is usually the second-most-valuable task with the cheapest verifier
+- Expert knowledge elicitation as an engineering discipline: exception-first interviewing, contrastive pairs, adjudicated multi-expert disagreement; outputs are candidate criteria and labeled cases, never notes
+- Definition of done under nondeterminism: hard constraints / graded qualities / escalation conditions; the third-party graderability test; escalation as a specified success mode
+- The spec as a living, versioned source artifact: upstream of evals (4.1), rubrics (4.2), autonomy grants (3.3), audit lineage (4.7), and training environments (5.5); spec–reality drift and its production signals (audited override rate, escalation-reason novelty, label disagreement)
+
+**Expert / edge cases:**
+- The fictional SOP: agent and eval built from the same imagined process certify each other while the field fails
+- Expert disagreement laundering: unadjudicated splits between experts encoded as silent model behavior — an institutional ambiguity shipped as an agent inconsistency
+- Ungradeable acceptance criteria ("accurate and professional") as the origin of judge drift (4.2)
+- Exception blindness: the 20% of cases that carry 80% of expert judgment absent from spec and eval
+- Spec–reality drift post-launch: process evolves, spec and validators encode the old world, evals stay green while quality decays
+
+**Canon:** Hamel Husain (error analysis and looking at your data before metrics); Anthropic *Building Effective Agents* (start from the task); safety-engineering literature on work-as-imagined vs. work-as-done; critical-incident and contrastive knowledge-elicitation practice.
+
+**Design exercise:** for a subrogation-recovery process (12-page unaudited SOP, two senior specialists, ~900 closed files/month, 30% review coverage), design the discovery-and-specification phase only: evidence plan, elicitation protocol with disagreement adjudication, a three-level definition of done for one sub-task, the labeled seed-set plan, and the portfolio-triage argument — including whether verifiability makes this the wrong first task.
 
 ---
 
@@ -827,11 +854,38 @@ Chapters within a part are mostly independent; parts are strictly ordered except
 
 ---
 
+### Chapter 5.8 — The Agent Platform: Fleet Architecture & Portfolio Governance
+
+**Failure story:** a provider deprecation notice forces a bank to inventory its agents: 47 found over five weeks, 11 with no owner, 9 with no evals, 6 over-permissioned, and two silently coupled — a format "improvement" upstream had quadrupled a downstream agent's error rate months earlier, unseen. Cleanup: $1.4M and a regulatory finding.
+
+**Objectives:** govern agents as a fleet, not a pile of well-built individuals: enumerate, own, standardize, and retire them mechanically.
+
+**Core topics:**
+- The fleet as a second system: n agents create up to n(n−1)/2 interaction seams that belong to no single agent's design review
+- The agent registry as control plane: owner, spec version, model and tool dependencies, autonomy grants, eval status, declared dependency edges, kill switch — enforced at the credential layer (no entry → no keys) and queryable in incident time
+- Paved roads: shared trace store, eval harness, policy engine, release gates, and cost metering as the platform bargain — golden path with teeth, priced against bespoke stacks
+- Cross-agent hazards: emergent coupling and silent input drift, common-mode provider/model failure, inter-agent feedback loops, resource contention
+- Portfolio governance: launch-time kill criteria, quarterly registry attestation, lifecycle-to-retirement; the orphan agent as a governance problem with a mechanical solution
+- Fleet-level operations: portfolio dashboard signals, provider-version dispersion as a conscious tradeoff, on-call for the space between agents
+
+**Expert / edge cases:**
+- Orphan agents with live permissions and no answerable human; credential expiry on attestation lapse
+- Shadow agents on personal keys — the registry as subset of reality; billing/egress reconciliation as detection
+- Agent-to-agent outputs without interface contracts; producer changes gated on downstream re-validation
+- Common-mode exposure vs. migration debt in model-version dispersion
+- Portfolio Goodhart: agent count and automation rate optimized while per-agent business value stays unexamined
+
+**Canon:** platform-engineering and paved-road literature applied to agents; Google SRE canon (fleet operations, adapted); CMDB/asset-governance practice; Ch. 5.7's team-topology and orphan-agent analysis extended to mechanism.
+
+**Design exercise:** for a health insurer with 23 agents from six teams, no registry, and an unknown dependency graph: design the registry schema (each field justified by a named query or incident), the credential-layer enforcement and incumbent-migration path, the four-engineer paved-road priority list, cross-agent hazard controls, the quarterly portfolio review with default kill criteria, and the six headline fleet-dashboard signals.
+
+---
+
 # PART VI — CAPSTONES & CERTIFICATION
 
 ### Capstone A — Regulated-Domain Agent Platform (end-to-end design)
 
-Design, on paper and to review standard, a complete agentic platform for a regulated workflow of your choice (credit, claims, audit, tax). Deliverables: task/autonomy analysis (Ch. 0.1, 3.3), full architecture with deterministic/agentic seam (3.1–3.2), containment and threat model (3.4–3.5), eval + grader-validation program (4.1–4.2), observability and reliability spec (4.3–4.4), unit-economics model (4.5, 5.5), release and audit posture (4.6–4.7), trust-ladder product spec (3.6), and vendor model-training diligence where third-party RL-trained components are used (5.5). Graded against the rubric in Section 9.
+Design, on paper and to review standard, a complete agentic platform for a regulated workflow of your choice (credit, claims, audit, tax). Deliverables: discovery and specification dossier — task inventory from evidence, elicitation plan, gradeable definitions of done (Ch. 0.3); task/autonomy analysis (Ch. 0.1, 3.3), full architecture with deterministic/agentic seam (3.1–3.2), containment and threat model (3.4–3.5), eval + grader-validation program (4.1–4.2), observability and reliability spec (4.3–4.4), unit-economics model (4.5, 5.5), release and audit posture (4.6–4.7), trust-ladder product spec (3.6), vendor model-training diligence where third-party RL-trained components are used (5.5), and a fleet-governance posture for the platform's second year — registry, paved roads, kill criteria (5.8). Graded against the rubric in Section 9.
 
 ### Capstone B — Production Incident Series (diagnostic mastery)
 
@@ -888,13 +942,15 @@ A simulated 60-minute defense: hostile senior review of Capstone A. You must def
 
 ## 10. Pacing Plans
 
-- **Standard (7 weeks):** 1 chapter/day, 5 days/week (27 chapters); part-gate reviews on weekends; capstones in week 7
+- **Standard (8 weeks):** 1 chapter/day, 5 days/week (32 chapters); part-gate reviews on weekends; capstones in week 8
 - **Intensive (3.5 weeks):** 2 chapters/day; evals chapters (4.1–4.2) pulled forward to week 1 alongside Part I; capstones compressed to 4 days
 - **Skip-testing:** for any chapter you believe you already own, take its self-test + design exercise cold; ≥85% with justified answers = skip credit (expect to test out of parts of 4.1–4.2 and 2.5)
 
 ---
 
-*Syllabus v1.1 — deliberately over-complete. Prune nothing until skip-tests prove mastery; the edge-case catalogs are where certified-expert differentiation lives.*
+*Syllabus v1.2 — deliberately over-complete. Prune nothing until skip-tests prove mastery; the edge-case catalogs are where certified-expert differentiation lives.*
 
 
 **Changelog v1.1 (post coverage-audit, Jul 2026):** added Ch. 3.6 Agentic Product Design & Trust UX (PM-layer gap); added Ch. 5.5 Reinforcement Learning for Agentic Systems (RLVR, GRPO, agentic RL, environments economy — training-layer gap); added Ch. 5.6 Agent Interoperability & Commerce Stack (A2A v1.0, AP2 mandates, agent payments — post-2025 standardization); Economics renumbered to 5.7; canon and pacing updated.
+
+**Changelog v1.2 (post four-lens expert review, Jul 2026):** added Ch. 0.3 From Process to Specification (task discovery, expert knowledge elicitation, definition of done — the specification gap upstream of every design exercise); added Ch. 5.8 The Agent Platform: Fleet Architecture & Portfolio Governance (registry, paved roads, cross-agent hazards, kill criteria — the one-agent-to-fleet gap downstream of 5.7); added §2.6 Simulation to Ch. 4.1; Capstone A gains a discovery/specification dossier and a fleet-governance deliverable; exam gains supplementary questions S1–S3; chapter counts normalized to 32 (pre-existing stale counts of 26/27 corrected); D1 and D6 competency statements extended.

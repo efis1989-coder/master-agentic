@@ -116,4 +116,4 @@ Build the 18-month business case for an agent platform in a regulated vertical o
 
 ---
 
-*This chapter closes Part V and, with it, the instructional arc of the course — from the deterministic-core philosophy of Part 0 through building blocks, architecture, production operations, and the advanced frontier. What remains is to prove the knowledge under load. Part VI turns to the capstones and certification: end-to-end design of a regulated-domain agent platform, a red-team exercise against your own architecture, and the mock certification exam that samples every domain by its production weight. The failure stories were the curriculum; the capstones are where you demonstrate you can prevent them.*
+*Next: Chapter 5.8 — The Agent Platform, where a routine model-deprecation notice forces a bank to spend five weeks discovering it owns 47 agents — eleven of them owned by no one, two of them silently coupled — because every agent was built responsibly and nobody was assigned the question that outranks all of them: who governs the fleet, and could they enumerate it today?*

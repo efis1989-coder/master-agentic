@@ -151,4 +151,4 @@ You are handed a 12-step agent with a measured, honest **97% per-step reliabilit
 
 ---
 
-*Next: Chapter 1.1 — LLM Mechanics for System Builders, where a 60K-token "context dump" triples latency, multiplies cost 8×, and makes the answer worse — because the context window is a priced, scarce resource, not a free bucket.*
+*Next: Chapter 0.3 — From Process to Specification, where an agent passes a 94% eval and still gets overridden on a third of its outputs — because the agent and the eval were built from the same 40-page fiction, and nobody had checked whether the documented process was the one that actually happens.*

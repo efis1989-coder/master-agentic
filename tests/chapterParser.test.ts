@@ -8,8 +8,8 @@ import {
 import { course, loadFile } from "./fixtures";
 
 describe("course assembly", () => {
-  it("parses exactly 30 chapters grouped into 6 parts (0–5)", () => {
-    expect(course.chapters).toHaveLength(30);
+  it("parses exactly 32 chapters grouped into 6 parts (0–5)", () => {
+    expect(course.chapters).toHaveLength(32);
     expect(course.parts.map((p) => p.part)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 

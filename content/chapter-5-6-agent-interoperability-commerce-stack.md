@@ -113,4 +113,4 @@ Define the interoperability posture for a bank piloting agent-to-agent procureme
 
 ---
 
-*The stack that lets agents transact raises the final question of the course: not how to build or connect agents, but whether to — the economics, organization, and strategy of agentic systems as business objects. Chapter 5.7 closes Part V with the honest ROI calculation that includes the eval engineers and the human reviewers and the trace storage and the compliance overhead, the build-buy-wait decision against the frontier's capability half-life, and the organizational failure mode of the orphan agent that no team actually owns.*
+*The stack that lets agents transact raises the next question: not how to build or connect agents, but whether to — the economics, organization, and strategy of agentic systems as business objects. Chapter 5.7 turns to the honest ROI calculation that includes the eval engineers and the human reviewers and the trace storage and the compliance overhead, the build-buy-wait decision against the frontier's capability half-life, and the organizational failure mode of the orphan agent that no team actually owns.*

@@ -43,7 +43,7 @@ Header block: chapter title, then italic line: *Part · Domain · Reading time �
 - Canon citations by name inline ("Anthropic's *Building Effective Agents*"), consistent with the syllabus Section 8 tier list
 - Fast-moving facts (protocol versions, vendor mechanics, pricing) flagged with "verify at study time"; doctrine stated as durable
 - Every chapter must answer: where is the deterministic core, what does verification cost, and what would make this design wrong
-- Cross-references use chapter numbers (e.g., "Ch. 3.4") and must match syllabus v1.1 numbering (27 chapters; 3.6, 5.5, 5.6 exist; Economics is 5.7)
+- Cross-references use chapter numbers (e.g., "Ch. 3.4") and must match syllabus v1.2 numbering (32 chapters; 0.3, 3.6, 5.5, 5.6, 5.8 exist; Economics is 5.7; 5.8 closes Part V)
 
 ## QA checklist per chapter (run before accepting)
 

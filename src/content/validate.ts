@@ -12,7 +12,7 @@ import { type RawFile, buildCourse } from "./buildCourse";
 const here = dirname(fileURLToPath(import.meta.url));
 const contentDir = resolve(here, "../../content");
 
-const EXPECTED_CHAPTERS = 30;
+const EXPECTED_CHAPTERS = 32;
 const EXPECTED_EXAM_QUESTIONS = 60;
 const EXPECTED_CAPSTONES = 3;
 const SELF_TEST_CLAIMS = 5;

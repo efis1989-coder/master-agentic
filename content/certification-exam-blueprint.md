@@ -549,6 +549,39 @@ Score one point per question. Pass = ≥51/60 overall AND ≥70% within every do
 
 ---
 
+## Supplement v1.2 — Chapters 0.3 & 5.8 (3 questions, not scored in the 60-question core)
+
+**S1 (D1 · Ch. 0.3).** A team builds an invoice-exception agent from the finance department's process documentation and authors the eval suite from the same document. The suite scores 96%. Post-launch, reviewers override 28% of the agent's outputs, and a stratified audit finds most overrides correct. What is the most likely root cause?
+
+- A. The model lacks capacity for the task and should be upgraded
+- B. Agent and eval encode the same work-as-imagined process, so the eval is structurally blind to the gap between the documented process and the work as actually done
+- C. Sampling temperature differs between the eval harness and production
+- D. Reviewers were insufficiently trained on the new tool and are over-correcting
+
+**S2 (D6 · Ch. 5.8).** Four months after an upstream team improved its agent's output format, a downstream agent that consumes those outputs has quietly gone from a 2% to a 9% error rate. Neither team's dashboards fired. What is the best structural control?
+
+- A. Retrain the downstream agent on a quarterly schedule
+- B. Treat agent-to-agent outputs as versioned interface contracts with consumer tests, declare the dependency edge in the agent registry, and gate producer changes on downstream re-validation
+- C. Merge the two agents into one so the seam no longer exists
+- D. Institute a weekly sync between the two teams
+
+**S3 (D6/D3 · Ch. 5.8).** A model provider announces a 90-day deprecation. The platform lead cannot determine which of the organization's agents are pinned to the deprecated version, and the eventual manual inventory takes five weeks. What failure does this reveal?
+
+- A. Insufficient prompt-engineering standards across teams
+- B. The absence of a credential-enforced agent registry whose dependency fields are queryable in incident time
+- C. A missing multi-agent orchestration layer to coordinate the migration
+- D. Under-investment in fine-tuned models that would not need migration
+
+**Supplement answer key:**
+
+| # | Answer | Why |
+|---|---|---|
+| S1 | B | Eval and agent built from the same fiction certify each other; the audited-correct override rate is the measurement of the spec gap (Ch. 0.3). |
+| S2 | B | Undeclared consumption makes every producer improvement silent input drift; the fix is contracts plus a queryable dependency edge, not cadence or meetings (Ch. 5.8). |
+| S3 | B | Enumeration is the precondition of fleet governance; a registry enforced at the credential layer makes the question one query instead of an archaeology dig (Ch. 5.8). |
+
+---
+
 ## Scoring and what certification means
 
 Total your score. Sixty scenario questions, ≥51 correct, no domain below its floor, and three design prompts to rubric. If you clear all three bars, you have demonstrated the competency this curriculum set out to certify: not that you can recite what an agent is, but that you can look at a trace, an architecture, or an incident you have never seen and locate the failure, the control, or the risk from first principles.
@@ -557,4 +590,4 @@ The deeper mastery signal, though, is not this exam. It is the one named in the 
 
 ---
 
-*This completes the Production Agentic Systems curriculum: twenty-six chapters across six domains, three integrative capstones, and a certification assessment. You began with the agentic spectrum and the recognition that production is a different sport; you end able to design a regulated-domain platform, diagnose its failures, defend its boundaries, and prove it under exam. The doctrine that carried through every chapter — agents propose, engines dispose, humans remain the immutable source of truth — is not a slogan you memorized but a discipline you can now apply cold, to any system, in any domain. That is what it means to have mastered it.*
+*This completes the Production Agentic Systems curriculum: thirty-two chapters across six domains, three integrative capstones, and a certification assessment. You began with the agentic spectrum and the recognition that production is a different sport; you end able to design a regulated-domain platform, diagnose its failures, defend its boundaries, and prove it under exam. The doctrine that carried through every chapter — agents propose, engines dispose, humans remain the immutable source of truth — is not a slogan you memorized but a discipline you can now apply cold, to any system, in any domain. That is what it means to have mastered it.*
