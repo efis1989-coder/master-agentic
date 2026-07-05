@@ -12,6 +12,8 @@ The numbers made it worse: the stale note had been loaded into 47 sessions acros
 
 Nobody had asked the question that governs every memory system: *when stored memory disagrees with the system of record, which one wins — and who decided?*
 
+**Memory is a cache of things that were true once, not a source of truth, so it needs a reconciliation gate that checks every stored fact against the system of record on read and lets the record win, plus a write policy, a scope partition, and a TTL that expires a true-once note before it becomes a standing lie.**
+
 ## 2. The mental model
 
 ### 2.1 A taxonomy, because "memory" is four different things
@@ -94,6 +96,53 @@ Anthropic's context-engineering guidance frames the practical version of this ch
 ## 6. Design exercise
 
 Write the full memory-policy table for a wealth-management agent operating under GDPR, where the CRM is the immutable system of record. For each memory type the agent will keep (e.g., stated communication preference, prior-session summary, learned task procedure, risk classification), specify five columns: *what* is stored, the *write trigger* (and whether human approval is required), the *scope* (per-user/per-tenant), the *TTL*, and the *conflict rule* when it disagrees with the CRM. Then state where the reconciliation gate sits and how a client's erasure request propagates to every derived memory.
+
+*Options:* CRM wins · Memory wins · Flag for reconciliation · Per-user · Per-tenant · Short TTL (days) · Medium TTL (weeks) · Long TTL (months) · No caching — live only · Human approval required · Automatic write
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| Conflict rule — risk classification | No caching — live only | Risk classification is a suitability-consequential fact owned by the CRM; storing it at all creates the four-month-lie scenario from §1, so it must never be cached. |
+| Conflict rule — stated communication preference | CRM wins | Communication preference is semantic memory that can be updated in the CRM; on disagreement the record is authoritative and the stored note must be flagged, not obeyed. |
+| Conflict rule — prior-session summary | Flag for reconciliation | Episodic memory records what happened and is immutable by nature, so a conflict with the CRM signals a data-integrity anomaly to surface rather than silently resolve. |
+| Conflict rule — learned task procedure | Flag for reconciliation | Procedural memory is durable until the underlying process changes; a conflict means the procedure may reflect a stale workflow, so it must be flagged and re-verified before reuse. |
+| Write trigger — risk classification | No caching — live only | Because risk classification must never be cached, there is no write trigger; every read sources it live from the CRM. |
+| Write trigger — stated communication preference | Human approval required | Communication preference is consequential enough to require a confirmed user statement before persistence, not an automatic extraction from unreviewed session content. |
+| Scope — stated communication preference | Per-user | Communication preference belongs to one client; surfacing it across other users or tenants would be a scope-isolation breach. |
+| Scope — prior-session summary | Per-user | Session history is tied to an individual client and must never cross tenant boundaries, consistent with the retrieval-path isolation doctrine in §2.4. |
+| TTL — stated communication preference | Long TTL (months) | Preferences are stable semantic facts but not permanent; a months-long TTL forces periodic re-confirmation before the note can become a standing lie. |
+| TTL — prior-session summary | Medium TTL (weeks) | Session summaries have episodic relevance that decays; a weeks-long TTL compacts the store and prevents old context from crowding newer, more relevant signal. |
+| TTL — learned task procedure | Long TTL (months) | Procedures are durable until the underlying tool or process changes; a months-long TTL forces re-verification on a cadence that catches workflow drift. |
+
+*Sample solution:* A complete memory-policy table for the wealth-management agent, grounded in the chapter's four-type taxonomy, write-gate/read-gate doctrine, and GDPR erasure obligations.
+
+**Memory-policy table**
+
+| Memory type | What is stored | Write trigger | Scope | TTL | Conflict rule |
+|---|---|---|---|---|---|
+| Risk classification | — (not stored) | No write — sourced live from CRM on every read | Per-user (read-path only) | No caching — live only | No caching — live only: agent always reads directly from CRM; storing a copy at any TTL recreates the four-month lie |
+| Stated communication preference | Client's preferred contact channel and format, as explicitly confirmed | Client's confirmed spoken or written statement; human approval required before persistence | Per-user | Long TTL (months); re-confirmation required at renewal | CRM wins: if CRM record differs from stored note, note is flagged for reconciliation and the CRM value is used |
+| Prior-session summary | Compacted summary of completed session (topic, actions taken, open items) | End-of-session automatic compaction; consequential attributes (suitability-touching) require write-gate review before persistence | Per-user | Medium TTL (weeks); older summaries compacted further or expired | Flag for reconciliation: episodic record is immutable in nature; a conflict with CRM surfaces as a data-integrity anomaly, not a silent override |
+| Learned task procedure | Steps and tool sequence that succeeded for a class of task | Automatic write after verified task completion; procedure touching regulated workflow requires human approval | Per-tenant | Long TTL (months); invalidated immediately on tool or process change detected | Flag for reconciliation: a conflict means the underlying process may have changed; procedure is suspended and queued for re-verification before reuse |
+
+**Where the reconciliation gate sits**
+
+The chapter establishes two gates: one on write, one on read. For this agent:
+
+- The **write gate** sits at the memory-write path immediately after session events are classified by type (§2.3). It checks whether the candidate fact is suitability-consequential and, if so, either bars persistence entirely (risk classification) or requires human confirmation (stated preference). It also checks whether the candidate conflicts with the CRM and, if so, bars the write and flags for reconciliation rather than letting memory override the record.
+- The **read gate** sits at retrieval, before any stored fact shapes an answer (§2.4). It runs the three-layer retrieval contract: filter by scope first (cross-user/cross-tenant results are structurally impossible), rank by relevance and recency within scope, then check survivors against the CRM. Any note that conflicts with the live CRM is replaced by the CRM value; the note is flagged. Risk classification bypasses stored memory entirely at this gate — it is always fetched live.
+
+**How an erasure request propagates**
+
+Under GDPR, a client's right to erasure extends to all derived memory, not just the primary CRM record (§3, "Deletion is an obligation with a deadline"). The propagation path:
+
+- The erasure request is received and logged with a deadline timestamp.
+- The deletion job iterates every scoped memory store partitioned to that user (stated preferences, session summaries, any procedural notes tagged to the user).
+- Each store confirms deletion and returns a receipt; the job is not complete until all stores confirm.
+- Any compacted summary that contains the client's data is also deleted or re-compacted with the client's facts removed.
+- The deletion event is written to the audit log with store-by-store confirmation and timestamp, allowing a reviewer to verify completion within the required window.
+- If any store cannot confirm deletion (e.g., a backup not yet pruned), it is flagged as a compliance gap requiring escalation rather than silently skipped.
 
 *Review standard:* the table passes if no row permits stored memory to override the CRM; if every consequential write (anything touching suitability) requires human confirmation or is barred from persistence; if every row has a scope and a TTL — no indefinite retention; if a risk classification is explicitly sourced live from the CRM rather than cached; and if a reviewer can trace an erasure request to deletion in every store within the required window. A row with "TTL: none" or "conflict rule: memory wins" fails.
 

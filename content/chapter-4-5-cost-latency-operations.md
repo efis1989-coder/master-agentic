@@ -10,6 +10,8 @@ Nobody found out until finance ran the quarterly reconciliation. The pricing pag
 
 The board deck said the feature was a triumph. The general ledger said it was a subsidy. Both were right, because the two numbers that mattered had never been put in the same sentence. The question the team had never asked — and the pricing page had silently assumed away — was **not "what does a model call cost," but "what does a *resolved task* cost, counting every call, retry, judge, and guardrail on the path to done, and does that number sit under the price?"**
 
+**The only honest unit of agent economics is cost per resolved task — every retry, judge call, guardrail, failed attempt, and infrastructure charge on the path to done — and if you cannot put that number in the same sentence as your price, a popular launch is not a triumph but a subsidy that scales its own losses.**
+
 ## 2. The mental model
 
 ### 2.1 Cost per resolved task is the only honest unit
@@ -79,6 +81,42 @@ Every lever in this chapter touches the provider surface, and every provider num
 ## 6. Design exercise
 
 You have a measured baseline of **$1.10 per resolved task** and a target price that demands **$0.40 per resolved task** — the exact gap from the failure story. Produce the *cost-reduction plan* that closes it. Your plan must include: a *ranked lever list* — which of prompt caching, semantic caching, model cascade/routing, output-length discipline, and batch processing you apply, in what order, and why that order; the *expected savings* per lever, stated against cost per *resolved task* (not per call), with the retries and judge calls included; the *quality risk* each lever introduces and the *eval gate* (Chapter 4.1) that protects against it before the lever ships; and the *governance* you put in place — the per-task and per-tenant ceilings and the spend-anomaly alert — so the new economics stay in range after launch.
+
+*Options:* Prompt-iteration velocity / cache-economics coupling · Poisoning of cached answer at scale · Escalation misrouting of hard tasks · Needed content truncated · Real-latency increase for deferred work
+
+*Check:* Match each lever to its primary quality risk as named in the chapter.
+
+| Item | Answer | Why |
+|---|---|---|
+| Prompt caching | Prompt-iteration velocity / cache-economics coupling | Designing prompts cache-first ties prompt-iteration velocity to cache economics; a change silently invalidates or fails to invalidate prefixes. |
+| Semantic caching | Poisoning of cached answer at scale | A wrong answer entering the semantic cache is served to every near-match, broadcasting a single error across many users. |
+| Model cascade / routing | Escalation misrouting of hard tasks | The cascade saves cost only if the uncertainty estimate is accurate; a misrouted hard task yields a confident wrong answer at a discount. |
+| Output-length discipline | Needed content truncated | Asking for shorter output cuts cost and latency directly, but risks dropping genuinely necessary detail on tasks that require longer answers. |
+| Batch processing | Real-latency increase for deferred work | Running non-urgent work at lower cost defers it; the quality risk is that time-sensitive tasks receive a materially worse latency experience. |
+
+*Sample solution:* A strong cost-reduction plan works from the honest unit ($1.10 cost per resolved task vs. $0.40 target) and treats the $0.70 gap as a budget to close across levers sequenced by return-on-risk.
+
+- **Lever ranking (highest-return, lowest-risk first):**
+  1. **Prompt caching** — highest-certainty savings with no quality tradeoff as long as prompts are redesigned cache-first (stable prefix, variable suffix). Apply first; the risk is only operational (prompt-iteration velocity now coupled to cache hit rate). Eval gate: monitor cache hit rate as a deployment metric; a drop below baseline is a release-blocking signal.
+  2. **Model cascade / routing** — large potential savings (routing ~70% of easy tasks to a cheaper model tier), but the risk is concentrated: escalation recall must be measured against a labeled ground-truth set before rollout. Eval gate: treat escalation as a binary classifier; require recall ≥ threshold on the hard-task stratum; do not ship if hard tasks are misrouted at meaningful rate.
+  3. **Output-length discipline** — direct token and latency cut for tasks where shorter output is sufficient; apply per task-type, not globally. Eval gate: run quality diff on the affected task stratum with and without the length constraint; block if needed-content truncation rate exceeds threshold.
+  4. **Semantic caching** — significant cost reduction for high-repetition query patterns, but carries the highest quality risk (cache poisoning). Apply after the above levers are stable. Gates: never cache answers below a confidence threshold; record provenance (model version, prompt version) on every cache entry; require cache invalidation on any prompt or model update.
+  5. **Batch processing** — applicable to non-latency-sensitive subtasks (e.g., overnight summarization, judge calls on closed tickets). Lowest priority; does not affect interactive resolved-task cost unless a meaningful share of tasks can be safely deferred.
+
+- **Expected savings against cost per resolved task (illustrative arithmetic):**
+  - Prompt caching: prefix reuse across the 3–4 tool-call context expansions may cut raw token cost by 20–30% — roughly $0.20–$0.30 off the $1.10 base.
+  - Model cascade: routing ~70% of tasks to a lower-cost model could cut model-call cost by 40–50%; with retries and judge calls included the resolved-task savings depend on the retry-rate differential between strata, but a reasonable estimate is $0.20–$0.30.
+  - Output-length discipline: output tokens are the most expensive; disciplined length caps can cut 10–15% of token cost, roughly $0.05–$0.10.
+  - Semantic caching (once safe): high-repetition query patterns can avoid model calls entirely; contribution varies by repetition rate.
+  - Combination target: the plan needs to reach $0.70 savings; prompt caching + cascade + length discipline is a plausible path, with semantic caching as the margin buffer.
+
+- **Quality risks and eval gates (per lever):** stated in the Check table above; every lever ships only after its named eval gate passes on the relevant task stratum — never on blended quality, which masks stratum-level regressions.
+
+- **Governance:**
+  - *Per-task ceiling*: set a hard dollar cap per resolved task (e.g., $0.60 after levers land) so a runaway retry storm cannot loop to a five-figure bill; tie to Chapter 4.4's budget-aware retry logic.
+  - *Per-tenant ceiling*: prevents one customer's usage spike from consuming shared margin.
+  - *Spend-anomaly alert*: the trace layer (Chapter 4.3) already attributes cost per span; configure a monitor to page on deviation from the expected cost-per-resolved-task distribution — a cache that stopped hitting, a retry storm, a prompt change that tripled tokens. The anomaly should page before the end of the business day, not appear in a quarterly reconciliation.
+  - *TCO line items in the baseline*: the $1.10 baseline and the $0.40 target must both include retrieval infra, trace storage, and human-review labor, not just tokens — otherwise the optimized number is as flattering and wrong as the original pricing model.
 
 **Review standard.** A strong answer optimizes the honest unit — cost per resolved task including retries, judges, and TCO — never cost per call, and can show its arithmetic; it pairs *every* lever with a named quality risk and a specific eval gate, treating the cascade's escalation recall and the semantic cache's poisoning risk as first-class rather than afterthoughts; it sequences levers by return-on-risk, not just by savings; and it closes with governance (ceilings, anomaly alerts) so the margin is a controlled variable and not a quarterly surprise. A weak answer lists levers and sums their advertised savings with no quality gates — reproducing the original error one level up, optimizing a number that flatters while the fully-loaded cost of getting the job done stays above the price.
 

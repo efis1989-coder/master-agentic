@@ -16,7 +16,9 @@ The design never asked the question that makes oversight real: *given that human
 
 ### 2.1 The risk-tiered autonomy matrix
 
-Effective oversight starts by refusing to treat all actions alike. Every action the agent can take is scored on three axes — its **action class** (what kind of operation), its **blast radius** (how much damage the worst version does), and its **reversibility** (how hard it is to undo) — and that score maps to an **oversight tier**: *auto* (execute and log), *notify* (execute and tell a human after), *approve* (a human must sign off before), or *dual-approve* (two humans for the most dangerous class). A low-blast, fully reversible action like drafting a customer note runs auto; an irreversible high-blast action like a large payment demands dual-approve. **Human attention is a finite budget, and oversight only works when you spend it on the decisions that are consequential and irreversible, not uniformly across a stream in which 99.7% of items never needed a human at all.**
+Effective oversight starts by refusing to treat all actions alike. Every action the agent can take is scored on three axes — its **action class** (what kind of operation), its **blast radius** (how much damage the worst version does), and its **reversibility** (how hard it is to undo) — and that score maps to an **oversight tier**: *auto* (execute and log), *notify* (execute and tell a human after), *approve* (a human must sign off before), or *dual-approve* (two humans for the most dangerous class). A low-blast, fully reversible action like drafting a customer note runs auto; an irreversible high-blast action like a large payment demands dual-approve.
+
+**Human attention is a finite budget, and oversight only works when you spend it on the decisions that are consequential and irreversible, not uniformly across a stream in which 99.7% of items never needed a human at all.**
 
 The matrix is what converts "review everything" — which reliably produces rubber-stamping — into "review what matters," which produces real scrutiny. The failure story had one tier for everything and therefore, in effect, no tiers.
 
@@ -88,6 +90,67 @@ The autonomy matrix connects directly to the seam of Ch. 3.1 — the tier an act
 ## 6. Design exercise
 
 Build the human-in-the-loop system for an *insurance-claims agent* with twelve action classes (for example: acknowledge receipt, request documents, calculate a routine payout, approve a payout, deny a claim, refer to investigation, adjust a reserve, close a claim, and so on). Produce (a) the risk-tiered autonomy matrix — each of the twelve classes scored on action class, blast radius, and reversibility, mapped to auto / notify / approve / dual-approve; (b) the reviewer dashboard spec for the classes that require human sign-off, showing what evidence, diff, and uncertainty signal each item surfaces; (c) the seeded-error canary program — what known-bad proposals you inject, at what rate, and how you compute catch rate; and (d) the promotion criteria that must be met before a class is moved to a more autonomous tier, and the demotion trigger that moves it back.
+
+*Options:* auto · notify · approve · dual-approve
+
+*Check:* For each of the twelve action classes below, the recommended oversight tier follows directly from the blast-radius and reversibility scores described in §2.1. Every answer is one of the four options above.
+
+| Item | Answer | Why |
+|---|---|---|
+| Acknowledge receipt | auto | Zero blast radius; fully reversible; no financial or legal consequence. |
+| Request documents | auto | Informational outbound; easily corrected; low blast, high reversibility. |
+| Calculate a routine payout (no disbursement) | notify | Computation only, not yet money-out; a human should be informed but need not gate the step. |
+| Approve a routine payout (within policy, low value) | approve | Money leaves the system; irreversible once settled; requires a single-human gate. |
+| Approve a large or complex payout (high value / edge-of-policy) | dual-approve | High blast radius and fully irreversible; the failure story's exact failure class. |
+| Deny a claim | approve | Regulatory and legal consequence; denial errors carry liability and are hard to undo once communicated. |
+| Refer to investigation | notify | Protective action that pauses risk; low immediate blast, reversible by closing the referral. |
+| Adjust a reserve (small delta, within authority) | notify | Internal accounting change; low external blast and auditable; notification suffices. |
+| Adjust a reserve (large delta or outside authority) | approve | Exceeds autonomy threshold; material financial and regulatory consequence. |
+| Close a claim (routine, settled) | notify | Terminal but low-blast when payout is already approved; a record that the case is done. |
+| Close a claim (contested or without full settlement) | approve | Potential legal and customer consequence; irreversible closure of a live dispute. |
+| Void or reverse a prior payment | dual-approve | Irreversible financial correction with downstream ledger effects; maximum blast class. |
+
+*Sample solution:* A complete answer to all four parts. Use this to calibrate whether your own response covers the required depth.
+
+**Part (a) — Risk-tiered autonomy matrix (twelve classes)**
+
+The matrix above in the Check table shows the recommended tiers. The governing principle: reversible, low-blast classes (acknowledge receipt, request documents) run auto; informational or small-delta financial changes (calculate payout, refer to investigation, small reserve adjustment, close settled claim) use notify with sampling; irreversible or policy-boundary actions (deny a claim, approve within policy, close contested) require single-human approve; the highest-blast irreversible classes (large/complex payout approval, void/reverse payment) require dual-approve. Action-class, blast radius, and reversibility are scored explicitly for each class — the tier is not guessed but derived.
+
+**Part (b) — Reviewer dashboard spec (approve and dual-approve classes)**
+
+For every item surfaced to a reviewer, the dashboard renders the following and nothing more on the primary screen:
+
+- *Proposed action* — a one-line diff: what the agent proposes versus the current state (e.g., "Pay $14,200 to claimant — policy limit $15,000; prior payments this policy year: $0").
+- *Evidence and provenance* — the three to five key documents or data points the agent used, each with a source link. The reviewer can expand; they should not need to.
+- *Uncertainty signal* — a visible confidence indicator (e.g., "Agent confidence: 61% — below 80% threshold") with the specific field driving the uncertainty flagged.
+- *One decision prompt* — "Approve / Reject / Escalate" with a required free-text reason field for rejections.
+- *Time-on-item timer* — visible counter; items approved in under 15 seconds are flagged for audit.
+
+The dashboard must not require the reviewer to navigate to a separate document system to find context. An item that cannot be surfaced with complete evidence is held, not displayed — the evidence-completeness requirement.
+
+**Part (c) — Seeded-error canary program**
+
+- *Error types injected:* (1) payout to a known-fraudulent payee, (2) payout amount 20% above policy limit, (3) denial on a claim that meets all coverage criteria, (4) reserve adjustment that would produce a negative reserve, (5) close of a claim with a pending sub-claim still open.
+- *Injection rate:* 2% of items in each review tier, allocated randomly across reviewers and shifts. Rate is invisible to reviewers; they do not know which items are canaries.
+- *Catch rate computation:* `caught_canaries / injected_canaries` per tier, per reviewer, per week. A per-reviewer catch rate below 70% triggers retraining. A per-tier catch rate below 80% triggers an escalation hold on that tier — no items auto-approved — until the rate recovers. Aggregate catch rate is the primary SLO for the oversight system; it is on the on-call dashboard alongside latency and error rate.
+- *Non-punishment policy:* Canary misses are treated as system problems first (interface, volume, fatigue) and individual errors second, to prevent reviewers from learning to game seeded items.
+
+**Part (d) — Promotion and demotion criteria**
+
+Promotion (moving a class to a less restrictive tier) requires all of:
+1. Catch rate on seeded errors for that class has been above 90% for 90 consecutive days.
+2. Override rate (reviewer overrides agent proposal) has been below 1% for 90 days.
+3. Zero incidents attributable to that class in the past 180 days.
+4. A deliberate review by a second engineer or compliance officer who signs off on the tier change.
+5. The promotion is logged as an artifact with the evidence cited.
+
+Demotion (moving a class to a more restrictive tier) is triggered by any of:
+- Catch rate on seeded errors for that class falls below 80% for two consecutive weeks.
+- Any single incident with blast above a defined threshold is traced to that class.
+- Override rate exceeds 5% for a rolling 14-day window.
+- A compliance or legal escalation is opened against an action in that class.
+
+Demotion is automatic and immediate; it does not require an engineer sign-off. Promotion is deliberate and evidence-gated; demotion is defensive and instant.
 
 **Review standard.** A strong answer spends human attention unevenly and on purpose: the reversible, low-blast classes run auto or sampled, and the scarce human review concentrates on the irreversible high-blast ones. The dashboard must render decisions, not documents. Crucially, the design must include the canary program — an oversight system with no way to measure its own catch rate is the failure story with better intentions — and the promotion/demotion criteria must be tied to measured evidence, not to how long a class has "seemed fine."
 

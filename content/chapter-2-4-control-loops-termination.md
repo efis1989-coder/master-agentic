@@ -96,6 +96,30 @@ Claude's agentic loops are built on the tool-use cycle of Ch. 1.3, and extended-
 
 Specify the complete termination policy for a research agent with a hard cost ceiling of $2 per task and a 5-minute latency SLO. Define: the hard budgets (turns, tokens, cost, wall-clock) and how they are enforced; the confidence gate that lets it stop early when evidence suffices; the oscillation detector (what constitutes a (state, action) cycle) and the escalate-after-N threshold for repeated failures; the effective-progress metric that distinguishes real advancement from token burn; and the reserved wrap-up margin — how much budget is held back so the agent always produces a summary or clean handoff even when it hits a ceiling.
 
+*Options:* Runtime-enforced ceiling · Model self-assessment · State-change delta · Turn-count advance · Revisit same state-action · Repeated-failure count · Evidence sufficiency gate · Budget starvation guard
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| How hard budgets are enforced | Runtime-enforced ceiling | The chapter's core thesis is that ceilings are enforced by runtime code outside the model's judgment, so no input can argue past them. |
+| What the confidence gate checks | Evidence sufficiency gate | The gate fires when gathered evidence is sufficient to answer — it is the only stop condition that lets the loop exit early before hitting a hard ceiling. |
+| What constitutes an oscillation cycle | Revisit same state-action | The chapter defines oscillation detection as hashing the (state, action) pair each turn and flagging any revisit of a pair already seen. |
+| What effective progress measures | State-change delta | The chapter explicitly contrasts effective progress (did the world model actually advance?) with turn count, which always rises regardless of real advancement. |
+| What the wrap-up margin guards against | Budget starvation guard | Reserving a margin ensures the agent never spends every token on the attempt and has fuel left to produce a summary or clean handoff when a ceiling trips. |
+
+*Sample solution:* A complete termination policy for this research agent ties together all five controls the chapter names; the design below addresses each in turn, using only mechanisms that sit outside the model's judgment.
+
+- **Hard budgets** — Set four enforced ceilings in the runtime, not in a prompt: max 40 turns, max 200 000 input+output tokens, hard cost ceiling $2.00, wall-clock timeout 4 min 45 sec (leaving 15 sec margin inside the 5-min SLO). All four are checked at the top of every turn before a tool call is issued; whichever trips first routes the loop to the reserved wrap-up branch. No model output can override them.
+
+- **Confidence gate** — After each turn, the runtime evaluates a structured signal the model emits alongside its response: a `confidence` field (0–1) plus a `missing_evidence` list. If `confidence ≥ 0.85` and `missing_evidence` is empty, the gate fires and the loop exits early with the current answer — no ceiling needs to trip. This is the only "model-influenced" stop condition; the model supplies the signal, but the gate threshold is a runtime constant the model cannot change.
+
+- **Oscillation detector and escalate-after-N** — Each turn, hash the tuple `(tool_name, normalized_query, last_result_digest)` as the (state, action) signature. Store seen hashes in a turn-scoped set; if a hash repeats, classify as oscillation and route immediately to wrap-up. Separately, track per-step failure counts: if the same logical step (identified by its plan step ID) fails N = 3 times, escalate — do not retry — and mark the step abandoned so the wrap-up can report it.
+
+- **Effective-progress metric** — Define the state as a frozen set of `fact_ids` (unique identifiers for distinct facts gathered). Each turn, compute the delta: `new_facts = current_fact_set − previous_fact_set`. If `|new_facts| == 0` for three consecutive turns, the loop is making no effective progress; treat this the same as a failed-step escalation. This keeps the health metric on "did the world model advance?" rather than "did a turn happen?"
+
+- **Reserved wrap-up margin** — Hold back a fixed $0.20 (10 % of the $2 ceiling) and 2 min of wall-clock as the wrap-up reserve. The runtime checks remaining budget against the reserve before every turn; once the remaining budget falls to the reserve threshold, the loop is forced into the wrap-up branch regardless of model confidence. The wrap-up branch issues one final call — bounded to the reserve — that must output: what was found, what step was active at termination, and why the loop stopped (ceiling / oscillation / escalation / confidence gate). A deliberately unanswerable question therefore still yields a structured "here is what I searched, here is why no answer was found, here is where I stopped" rather than a silent burn.
+
 *Review standard:* the policy passes if no single input can drive cost past $2 or latency past 5 minutes regardless of the model's judgment; if oscillation and sunk-cost retrying are caught by detectors, not by the model noticing; if "progress" is measured as state change, not turn count; and if a deliberately unanswerable question still yields a graceful "here's what I found and why I stopped" rather than a silent budget burn. A policy whose only stop condition is "the model decides it's done" fails.
 
 ## 7. Self-test — judge each claim, justify in one sentence

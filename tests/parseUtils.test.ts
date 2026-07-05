@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractGlossaryTerms } from "../src/content/parseUtils";
+import { extractGlossaryTerms, stripInlineEmphasis } from "../src/content/parseUtils";
 import type { ChapterSection } from "../src/content/types";
 
 function section(markdown: string, n = 1): ChapterSection {
@@ -72,5 +72,31 @@ describe("extractGlossaryTerms", () => {
       section("Redesign this into **≤12 agent-facing tools** for the CRM.", 6),
     ]);
     expect(terms).toEqual([]);
+  });
+});
+
+describe("stripInlineEmphasis", () => {
+  it("removes mid-string italic markers, keeping the text", () => {
+    expect(stripInlineEmphasis("integrity lives entirely in the *label*.")).toBe(
+      "integrity lives entirely in the label.",
+    );
+  });
+
+  it("removes mid-string bold markers, keeping the text", () => {
+    expect(stripInlineEmphasis("put a **validator at the seam** between systems.")).toBe(
+      "put a validator at the seam between systems.",
+    );
+  });
+
+  it("removes multiple emphasis spans in one string", () => {
+    expect(stripInlineEmphasis("the *judge* inherits the **judge's biases** here.")).toBe(
+      "the judge inherits the judge's biases here.",
+    );
+  });
+
+  it("leaves text without emphasis untouched", () => {
+    expect(stripInlineEmphasis("plain doctrine sentence with no markers")).toBe(
+      "plain doctrine sentence with no markers",
+    );
   });
 });

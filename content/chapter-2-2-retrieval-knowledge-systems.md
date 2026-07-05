@@ -12,6 +12,8 @@ The manager, trusting a cited answer, quoted $2M in a renewal negotiation. The e
 
 Nobody had asked the question that governs every knowledge system: *for facts that change, what is our freshness guarantee, and what does the agent do when the index cannot meet it?*
 
+**Retrieval returns what was true when the index was built, not what is true now, so every knowledge system needs an explicit freshness contract that routes each fact by its volatility to the index or a live source, and a grounding validator that admits only claims a current source can attribute.**
+
 ## 2. The mental model
 
 ### 2.1 Retrieval is a system, not a library call
@@ -93,6 +95,26 @@ Claude consumes retrieved context like any other input — meaning retrieved doc
 ## 6. Design exercise
 
 Design the knowledge layer for an audit agent under three hard constraints: every claim in every answer must carry a verifiable source; permissions differ per engagement, so an auditor on Engagement A must never retrieve Engagement B's documents; and 5% of the corpus changes daily. Specify: the chunking and hybrid-retrieval strategy; the volatility classification and which facts route to a live source versus the index; the ACL model and where permission filtering happens in the pipeline; the grounding/citation enforcement; and the precedence policy when two sources conflict.
+
+*Options:* Structure-aware chunking · Fixed-window chunking · Live-API fallthrough · Nightly index refresh · Filter before ranking · Filter after ranking · Refuse unattributable claim · Answer without citation · Stated precedence policy · Silent source selection
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| Chunking strategy for structured audit documents | Structure-aware chunking | Fixed windows sever clauses from their headings and tables from their captions, producing technically-retrieved but semantically broken spans (§2.1). |
+| Routing for the 5%-daily-churn volatile facts | Live-API fallthrough | No achievable index frequency closes a same-day amendment window, so volatile facts must route to the system-of-record with a timestamp (§2.3). |
+| Where ACL permission filtering runs in the pipeline | Filter before ranking | Filtering after ranking still leaks forbidden documents into the model's context; filtering before ranking makes cross-engagement leakage structurally impossible (§3). |
+| What the grounding gate does when a claim cannot be attributed | Refuse unattributable claim | The system's contract is "every claim carries a source or the claim is not made," so an unattributable span must be stripped or the answer refused (§2.4). |
+| How the agent resolves two documents that disagree on a value | Stated precedence policy | Silent selection picks the wrong source without surfacing the conflict; a declared rule (recency, authority, or surface-to-user) is required (§3). |
+
+*Sample solution:* A passing design applies the chapter's source-of-truth hierarchy and both deterministic seams — the volatility router and the grounding gate — to all five sub-problems.
+
+- **Chunking** — Use structure-aware chunking that keeps each clause with its section heading, each table with its caption, and each defined term with its definition. A hybrid retrieval stack (BM25 for exact engagement IDs, clause references, and rare audit terms + dense embeddings for paraphrase and concept) feeds a reranker. This combination catches what either channel alone misses.
+- **Volatility classification and routing** — Classify facts at ingest: stable corpus items (historical filings, prior-period workpapers) route to the index; items flagged as volatile (active engagement status, live account balances, any document with an amendment-pending marker) route directly to the engagement system of record via a live-API fallthrough call that returns a source timestamp. The classification is owned by the system, not inferred by the model.
+- **ACL model** — Each document carries engagement-scope metadata. The permission filter runs as the first operation in the retrieval pipeline, before hybrid search and before ranking, so the dense and lexical channels only ever see the requesting auditor's permissible corpus. Post-ranking filtering is explicitly rejected because it would still route restricted document vectors through the ranker and into context.
+- **Grounding / citation enforcement** — A grounding validator (deterministic code, not a prompt) checks every claim in the draft answer against the retrieved, cited spans before the answer leaves the system. Claims with no attributable source are stripped; if the remaining answer is insufficient, the agent returns "I could not ground this claim" rather than a partial fabrication. End-answer accuracy is tracked separately from recall@k to catch the divergence the failure story illustrates.
+- **Precedence policy** — Declared in advance: (1) the system of record beats the index on any fact for which a live fallthrough exists; (2) for index-only conflicts, the more-recently timestamped source takes precedence; (3) if neither rule resolves the conflict, the agent surfaces both values with their sources to the user rather than choosing silently. This policy is code and configuration, not a system-prompt instruction.
 
 *Review standard:* the design passes if no answer can contain an unattributable claim; if the permission filter provably runs before ranking so cross-engagement leakage is structurally impossible, not merely unlikely; if the 5%-daily churn is handled by a stated freshness mechanism rather than hoped away by index frequency; and if a reviewer can name, for a specific volatile fact, the exact source the agent will consult and the timestamp it will report. A design that relies on "the index is refreshed often enough" fails.
 

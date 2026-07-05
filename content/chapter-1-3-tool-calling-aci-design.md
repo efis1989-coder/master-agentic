@@ -38,7 +38,9 @@ Pagination, truncation, units, timezones, and IDs cause more production tool bug
 
 ### 2.5 Poka-yoke: make invalid calls unrepresentable
 
-**Poka-yoke** — mistake-proofing — is the discipline of designing interfaces where the wrong action cannot be expressed. Enums instead of free text so the model cannot invent a category. Required fields so a call cannot be half-formed. Typed IDs so an account ID cannot be passed where a transaction ID belongs. Strict schemas that reject unknown parameters loudly instead of ignoring them silently. The principle borrows from physical design — a plug that only fits one way removes the instruction "insert correctly" — and applies verbatim to a probabilistic caller: every constraint you encode in the schema is a class of error the model can no longer commit, no matter how it reasons. **An agent is only as reliable as its worst tool interface; you do not raise reliability by instructing the model to be careful, you raise it by making careless calls unrepresentable.**
+**Poka-yoke** — mistake-proofing — is the discipline of designing interfaces where the wrong action cannot be expressed. Enums instead of free text so the model cannot invent a category. Required fields so a call cannot be half-formed. Typed IDs so an account ID cannot be passed where a transaction ID belongs. Strict schemas that reject unknown parameters loudly instead of ignoring them silently. The principle borrows from physical design — a plug that only fits one way removes the instruction "insert correctly" — and applies verbatim to a probabilistic caller: every constraint you encode in the schema is a class of error the model can no longer commit, no matter how it reasons.
+
+**An agent is only as reliable as its worst tool interface; you do not raise reliability by instructing the model to be careful, you raise it by making careless calls unrepresentable.**
 
 ```mermaid
 flowchart LR
@@ -90,6 +92,76 @@ Claude exposes tool use through a structured tool-calling API and, at the ecosys
 ## 6. Design exercise
 
 You inherit a CRM integration exposing 40 low-level tools: `get_contact`, `get_contact_by_email`, `get_contact_by_phone`, `list_contacts`, `search_contacts_v1`, `search_contacts_v2`, five near-identical note-creation tools, separate getters for every sub-resource, and so on. Redesign this into **≤12 agent-facing tools**. Then specify *one tool completely*: name (namespaced), description (including when *not* to call it), full parameter schema (types, enums, required fields, typed IDs), return payload shape (fields and pagination contract), and every error response the agent can receive with the corrective feedback each carries. Justify every consolidation and every schema choice in terms of a specific agent failure mode it prevents — cite the edge-case number from §4.
+
+*Sample solution:* A model answer a learner can self-compare against. Ground every decision in a named failure mode from the §4 edge-case catalog.
+
+**Consolidated tool surface (≤12 tools)**
+
+The 40 raw tools collapse into a small namespace by asking: what agent tasks exist, not what database rows exist. A defensible surface looks like this:
+
+- `crm.contacts.search` — single point of entry for all contact lookup (replaces `get_contact`, `get_contact_by_email`, `get_contact_by_phone`, `list_contacts`, `search_contacts_v1`, `search_contacts_v2`). Kills §4 edge case 1: name collisions across near-duplicate tools make the model choose by pattern-match rather than semantics.
+- `crm.contacts.get` — fetch one contact by typed `contact_id`; no free-text reference accepted. Kills §4 edge case 5: typed ID prevents fuzzy-match on the wrong record.
+- `crm.contacts.update` — single mutating tool for any contact field; rejects unknown fields loudly. Kills §4 edge case 1 (hallucinated parameter) and edge case 5.
+- `crm.contacts.notes.create` — replaces five near-identical note-creation tools; an enum `note_type` field selects the variant. Kills §4 edge case 1: enums make an impossible category unrepresentable (poka-yoke, §2.5).
+- `crm.contacts.notes.list` — paginated, always returns `total_count` and `cursor`. Kills §4 edge case 3: explicit completeness contract prevents treating page 1 as the full set.
+- `crm.activities.list` — paginated activity history with typed `contact_id`; consolidates separate getters for calls, emails, tasks. Kills §4 edge case 3 and 6.
+- `crm.deals.search` — deal lookup by contact, stage enum, or date range; returns only decision-relevant fields. Kills §4 edge case 6 (bloated return payload).
+- `crm.deals.get`, `crm.deals.update`, `crm.deals.create` — three deal-lifecycle tools; each enforces typed IDs, currency + minor-unit fields, stage enums.
+- `crm.tasks.create`, `crm.tasks.complete` — two task tools; completion requires a typed `task_id`, not a free-text reference.
+
+That gives 12. Any remaining sub-resource getters are retired: if the agent needs a field, `crm.contacts.get` returns the full record on request.
+
+**Fully specified tool: `crm.contacts.search`**
+
+*Name:* `crm.contacts.search`
+
+*Description:* Search CRM contacts by query string, email, phone, or account. Returns a paginated list of matching contacts. **Do not call this tool if you already hold a `contact_id`** — use `crm.contacts.get` instead. Do not call this tool to verify that a contact exists after a successful `crm.contacts.update`; that tool's own response confirms persistence.
+
+*Parameter schema (all fields typed; unknown fields rejected):*
+
+```
+{
+  "query":        string | null,   // free-text; null if filtering by exact field
+  "email":        string | null,   // exact match; null if not filtering by email
+  "phone":        string | null,   // E.164 format; null if not filtering by phone
+  "account_id":   AccountId | null,// typed ID; rejects bare strings
+  "cursor":       string | null,   // pagination cursor from prior response; null for first page
+  "page_size":    integer,         // required; 1–100
+  "fields":       FieldEnum[]      // required; enum of returnable fields; prevents bloat
+}
+```
+
+Required: `page_size`, `fields`. At least one of `query`, `email`, `phone`, `account_id` must be non-null. `account_id` is a typed `AccountId` scalar — passing a `contact_id` here is a schema error (kills §4 edge case 5).
+
+*Return payload (completeness contract explicit):*
+
+```
+{
+  "contacts":    Contact[],      // array of objects, fields limited to what was in `fields`
+  "total_count": integer,        // total matching records across all pages
+  "page_size":   integer,        // echoed back
+  "cursor":      string | null   // null only when this page is the final page
+}
+```
+
+`total_count` is always present; `cursor: null` is the only signal that the result is complete. A caller must loop until `cursor` is null — the contract makes silent truncation structurally impossible (kills §4 edge case 3).
+
+*Error responses (validation-with-feedback; kills §4 edge case 1 and §4 edge case 3):*
+
+| Code | Message | What the agent must do |
+|---|---|---|
+| `UNKNOWN_PARAMETER` | `"Unknown parameter 'limit'; valid parameters: query, email, phone, account_id, cursor, page_size, fields"` | Drop the unknown field, retry |
+| `INVALID_ID_TYPE` | `"'account_id' must be an AccountId scalar; received a string literal"` | Resolve the AccountId first, then retry |
+| `MISSING_REQUIRED` | `"'page_size' is required; 'fields' is required"` | Supply missing fields, retry |
+| `INVALID_FIELD_ENUM` | `"'fields' value 'company_notes' is not valid; valid values: id, name, email, phone, account_id, owner_id, created_at"` | Correct the enum value, retry |
+| `NO_FILTER` | `"At least one of: query, email, phone, account_id must be non-null"` | Add a filter, retry |
+| `PAGE_SIZE_RANGE` | `"'page_size' must be 1–100; received 500"` | Reduce page_size, retry |
+
+Every error names the exact field and the valid alternatives — each is a direct implementation of validation-with-feedback (§2.3). No error ever says only `"invalid request"`.
+
+**Justification summary**
+
+Consolidating 40 tools to 12 directly reduces fixed context cost (§3: ~11K tokens → ~3K tokens of schema overhead) and lowers selection-error rate (§3: fewer names to confuse). Namespacing (`crm.contacts.*` vs. `search_v2`) kills §4 edge case 1 by making the right choice structurally obvious. The typed `AccountId` scalar and stage enums eliminate entire classes of ambiguous input (§4 edge case 5). The `total_count` + `cursor: null` completeness contract makes it impossible to silently treat page 1 as the full result (§4 edge case 3). The `fields` enum enforces response-format discipline, keeping mean tokens-per-tool-result low (§4 edge case 6). Every error response hands the model the exact correction, converting a retry spiral into a one-turn fix (§2.3).
 
 *Review standard:* the redesign passes if (a) no two tools can be confused by name or description, (b) the fully-specified tool cannot be called with an unknown parameter, an untyped ID, or an ambiguous unit, (c) its return payload makes partial results impossible to mistake for complete ones, and (d) each of its error responses names both what was wrong and what would be valid. A reviewer should be able to point at each design decision and name the incident it forecloses.
 

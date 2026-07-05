@@ -22,7 +22,9 @@ The architectural insight is that MCP is the **integration substrate** beneath y
 
 ### 2.2 A tool portfolio is managed, not accumulated
 
-Every registered tool is sent on every request (Ch. 1.3), so the portfolio has a running context cost independent of use. **A registered tool is not free capability; it is a permanent tax on context, a standing line in your attack surface, and one more option the model can select wrongly — so the default answer to "should we add this tool" is no.**
+Every registered tool is sent on every request (Ch. 1.3), so the portfolio has a running context cost independent of use.
+
+**A registered tool is not free capability; it is a permanent tax on context, a standing line in your attack surface, and one more option the model can select wrongly — so the default answer to "should we add this tool" is no.**
 
 Three portfolio techniques fight the accumulation. **Deferred or dynamic loading**: expose only the tools relevant to the current task or phase, rather than the union of everything. **Tool search**: when the catalog is genuinely large, let the agent query for the right tool instead of carrying all definitions in context — trading a lookup step for a smaller standing prompt. **Per-task tool budgets**: cap how many tools a given task profile may see, forcing prioritization. The economics are a straight trade: marginal tool value against marginal context cost *and* marginal selection-error rate. Past a point, adding tools lowers cost-per-resolved-task by making the agent worse at choosing among them.
 
@@ -91,6 +93,29 @@ MCP is Anthropic's open standard, and Claude acts as an MCP host: it connects to
 ## 6. Design exercise
 
 Define the full MCP topology for a finance-ops agent that must reconcile ledgers across an ERP, initiate and read banking data, search and read internal docs, and draft email. Specify: (a) which servers exist and whether each is local or remote, first-party or third-party; (b) the OAuth scope granted to each remote server, justified against the tools actually needed; (c) the per-task tool budget and which tools load for which task profiles (reconciliation vs. reporting vs. correspondence); (d) the name-collision resolution policy; and (e) exactly where the egress allow-list sits and what it permits.
+
+*Options:* Least-privilege read-only · Least-privilege read-write · Broad delegated access · Namespace by server · Reject-on-collision · Load-order resolution · Between server and outside world · Inside the agent's context window · At the OAuth authorization layer
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| OAuth scope for banking server (reads statements, initiates payments) | Least-privilege read-write | The agent needs both read and a bounded write (initiate payment), so read-only is insufficient, but broad delegated access violates the doctrine that grants scopes against tools actually needed. |
+| OAuth scope for docs server (search and read only) | Least-privilege read-only | The agent never writes to docs, so any write scope is surplus attack surface; the chapter demands scope justified against tools actually needed. |
+| Name-collision resolution policy when two servers expose the same tool name | Namespace by server | Load-order resolution is explicitly called a "silent correctness bug" in §3; reject-on-collision is an option but prevents any overlap; namespacing by server (`banking.create_payment` vs `erp.create_payment`) is the chapter's named solution. |
+| Where the egress allow-list sits | Between server and outside world | §2.4 and the diagram caption place the gate "between every server and the outside world" as a seam owned by the platform team, not inside the agent's context window or delegated to OAuth. |
+
+*Sample solution:* A passing topology for this finance-ops agent applies every governance control the chapter names. The following covers all five sub-tasks using only the chapter's vocabulary.
+
+- **(a) Server inventory.** Four servers are warranted. (1) ERP server — local subprocess, first-party; trusted, low-latency, no OAuth needed. (2) Banking server — remote, third-party; highest-risk server in the topology. (3) Docs server — remote, first-party or third-party depending on vendor; read-only. (4) Email server — remote, first-party; scoped to draft and send on behalf of the agent. Each server carries a named owner, a pinned version in the manifest, and a color-coded trust level (green/yellow/red in the diagram's terms).
+
+- **(b) OAuth scopes.** Banking server: `accounts:read statements:read payments:initiate` — read plus a tightly scoped write covering only the payment-initiation tool; no admin, no full-account delegation. Docs server: `documents:read search:read` — no write scope because no docs tool writes. Email server: `email:draft email:send` — scoped to drafting and sending only, not delete or read of inbox. ERP server: local/trusted, no OAuth; access controlled by process-level permissions.
+
+- **(c) Per-task tool budgets.** Three task profiles, each loading only what it needs. Reconciliation profile: ERP tools (read ledger, read line items) + Banking tools (read statement, read transaction) — no email, no docs. Reporting profile: ERP tools (read aggregates) + Docs tools (search, read report templates) — no banking write, no email. Correspondence profile: Email tools (draft, send) + Docs tools (search for reference material) — no banking, no ERP write. The standing tool-definition token cost for the largest profile (reconciliation, ~4 tools × ~300 tokens each) is approximately 1,200 tokens — well within budget compared to the failure story's 30,000-token baseline from 120 unfiltered tools.
+
+- **(d) Name-collision resolution policy.** Every tool is namespaced by server at registration: `erp.read_ledger`, `banking.read_statement`, `banking.initiate_payment`, `docs.search`, `docs.read`, `email.draft`, `email.send`. A startup scan checks for collisions in the resolved namespace and rejects any server registration that introduces a duplicate after namespace prefix is applied. Load-order resolution is explicitly prohibited in the platform policy.
+
+- **(e) Egress allow-list placement.** The allow-list sits as a network-layer gate between every MCP server and the outside world — identical to the diagram in §2.4. The banking server's allow-list permits exactly one destination: the bank's production API endpoint (e.g., `api.bankname.com`). The email server permits the SMTP relay only. The docs server permits the internal document store hostname only. Any egress attempt by any server to a destination not on its per-server allow-list triggers an alert and is blocked. This converts a compromised community server's hidden exfiltration from a silent four-day incident into a blocked, alerted event.
 
 *Review standard:* the topology passes if every server has a named owner, a pinned version, and a least-privilege scope; if no two tools can collide without a deterministic resolution rule; if the standing tool-definition token cost is stated and bounded by the budget; and if a reviewer can trace, for the banking server specifically, exactly what data can leave the system and through which allow-listed destination. A design that grants any server broad scope "to keep it simple" fails.
 

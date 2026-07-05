@@ -54,6 +54,10 @@
   margin-bottom: var(--space-1);
 }
 
+.sample {
+  margin-top: var(--space-3);
+}
+
 .actions {
   padding-top: var(--space-3);
   border-top: 1px dashed var(--color-border);

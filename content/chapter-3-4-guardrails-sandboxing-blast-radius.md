@@ -18,7 +18,9 @@ The post-mortem kept circling one framing. Everyone wanted to know why the agent
 
 Start by refusing the seductive framing that the story ends with. You will not make the agent reliable enough to never issue a catastrophic command. Reliability buys you a lower *rate* of bad actions; it does not bound the *damage* of the ones that get through, and at production volume the rate never reaches zero. **Containment** is the discipline of making the worst reachable outcome small *regardless of how the agent behaves*, so that a bad decision costs a retry instead of a restore.
 
-The unit of analysis is the capability, not the agent. For every tool or permission you grant, do a **blast-radius analysis**: enumerate the worst plausible single action that capability enables, and trace what that action can reach. A shell's worst action is not "run a helpful command"; it is "delete or overwrite anything the process can write to." A payment tool's worst action is not "pay a valid invoice"; it is "pay the maximum amount to an arbitrary payee." An email tool's worst action is "send anything to anyone the address book can name." You are not estimating likelihood here — you are measuring the size of the crater. **Blast-radius analysis asks a single question of every capability you grant: if this tool fires the worst legal call it is capable of, what is the largest amount of money, data, or trust that call can reach — and containment is the engineering that makes that reachable maximum small by construction, before you have said one word about how often it will happen.**
+The unit of analysis is the capability, not the agent. For every tool or permission you grant, do a **blast-radius analysis**: enumerate the worst plausible single action that capability enables, and trace what that action can reach. A shell's worst action is not "run a helpful command"; it is "delete or overwrite anything the process can write to." A payment tool's worst action is not "pay a valid invoice"; it is "pay the maximum amount to an arbitrary payee." An email tool's worst action is "send anything to anyone the address book can name." You are not estimating likelihood here — you are measuring the size of the crater.
+
+**Blast-radius analysis asks a single question of every capability you grant: if this tool fires the worst legal call it is capable of, what is the largest amount of money, data, or trust that call can reach — and containment is the engineering that makes that reachable maximum small by construction, before you have said one word about how often it will happen.**
 
 The output of the analysis is not a risk score. It is a list of reachable maxima, and each one is a design defect until you have contained it.
 
@@ -111,6 +113,60 @@ Produce the full containment spec for an agent with two capabilities: *send emai
 3. For every guardrail, its placement (pre-model, post-model, or pre-effect) and a one-line justification for why it lives there.
 4. The estimated latency and cost overhead each layer adds per action, and which layer you would remove first if you had to cut the overhead in half.
 5. The kill-switch design: what it preempts, how fast, and how you would test that it actually stops in-flight work.
+
+*Options:* Pre-model · Post-model · Pre-effect
+
+*Check:* For each guardrail below, identify the correct placement using the chapter's three-layer taxonomy.
+
+| Item | Answer | Why |
+|---|---|---|
+| Reject email requests exceeding maximum input size | Pre-model | Runs on raw input before the model sees it; checks a structural fact (byte count), not content meaning |
+| Content classifier that flags proposed emails containing sensitive personal data | Post-model | Inspects the model's proposed output before execution; interprets meaning, making it probabilistic and bypassable |
+| Recipient allow-list check on the resolved "To" address before the email is sent | Pre-effect | Runs at the effect seam, checks a fact (is this address on the list), cannot be argued past by rephrasing |
+| Amount cap check on the resolved payment figure before the payment API call fires | Pre-effect | Runs at the effect seam against a numeric fact; deterministic and not interpretable, so certifiable |
+| Content classifier that flags proposed payments to unfamiliar payee names | Post-model | Interprets intent from text; probabilistic, placed post-model — reduces rate but does not bound damage |
+| Payee allow-list check against the resolved payee identifier before the payment executes | Pre-effect | Same seam as amount cap; checks a resolved identity fact, making it the load-bearing control for payee scope |
+
+*Sample solution:* A full containment spec for the send-email and initiate-payment capabilities, covering all five deliverables.
+
+**Deliverable 1 — Blast-radius analysis**
+
+- *Send email.* Worst single action: send arbitrary content to every address the agent's address book can resolve — potentially thousands of recipients, with content crafted to impersonate the company, leak PII, or serve as a phishing vector. The blast radius includes reputational damage, regulatory exposure (CAN-SPAM, GDPR), and loss of customer trust. It also includes data exfiltration: email is an egress channel the same network control that limits outbound API calls must treat seriously.
+- *Initiate payment.* Worst single action: issue a payment for the maximum allowed amount to an arbitrary payee the agent can resolve — a single call that drains the daily cap, transfers funds to an attacker-controlled account, or triggers a cascade of downstream payments. The blast radius is a direct financial loss bounded only by the per-transaction and daily caps, which must therefore be set conservatively.
+
+**Deliverable 2 — Five-layer containment stack**
+
+*Send email:*
+1. **Least-privilege scope.** The agent holds the email tool only for tasks in the `customer-outreach` role; it is not available to the billing or infrastructure roles. The address book is scoped to verified customer records only — no internal staff addresses, no raw freeform "To" input.
+2. **Sandbox + egress.** The process may reach the configured SMTP relay and nothing else on port 25/587/465. Outbound HTTPS is allow-listed to the single email-sending API endpoint; no other network egress.
+3. **Budgets.** Maximum 200 emails per task, 1,000 per hour across all tasks. Each email body capped at 10,000 tokens before rendering. Rate budget is enforced as an atomic decrement-and-check — parallel workers must reserve the count before sending, not after.
+4. **Preview + reversibility.** Any send to more than 10 recipients renders as a dry-run plan for human approval before execution. Sent emails are logged with a 24-hour suppression window: if a bulk campaign is flagged within 24 hours, a follow-up retraction email can be dispatched to the same recipient list.
+5. **Kill switch.** A per-task and fleet-wide halt that preempts queued and in-flight send calls, not just new task admissions. Tested weekly by issuing a timed kill signal during a staging bulk-send and verifying the in-flight call count drops to zero within two seconds.
+
+*Initiate payment:*
+1. **Least-privilege scope.** Payment tool is available only to the `finance-ops` role and only for tasks explicitly tagged `payment-authorized`. No other agent role holds the capability.
+2. **Sandbox + egress.** Outbound HTTPS allow-listed to the payment provider's API domain only. No access to internal banking systems, no raw wire-transfer endpoints.
+3. **Budgets.** Per-transaction cap: $5,000. Daily cap across all tasks: $50,000. Per-task cap: $10,000. Budget reservation is atomic — the daily cap is claimed before the API call, not after confirmation.
+4. **Preview + reversibility.** Any single payment above $1,000 renders as a plan preview requiring dual approval (Chapter 3.3). Payments are posted with a 15-minute soft-reversal window via the provider's void/refund API; the compensating transaction is staged and ready before the payment call fires.
+5. **Kill switch.** Fleet-wide payment halt preempts all in-flight payment API calls by revoking the short-lived API token the process holds. Token rotation is the preemption mechanism, not a signal the running process must honor. Tested monthly in staging.
+
+**Deliverable 3 — Guardrail placement and justification**
+
+See the *Check* table above for the six canonical guardrails. The general principle: pre-model checks catch structural problems early and cheaply; post-model classifiers reduce the rate of bad proposals but cannot bound damage; pre-effect validators at the effect seam are the load-bearing controls because they check resolved facts — amount, address, payee ID — rather than interpreting intent.
+
+**Deliverable 4 — Latency and cost overhead**
+
+- Pre-model guardrails: ~1 ms, negligible token cost; essentially free.
+- Post-model content classifiers: 50–200 ms per call, plus the cost of a small classification model or an API round-trip; this is the most expensive non-effect layer at scale.
+- Pre-effect validators (allow-list lookups, amount comparisons): ~2–5 ms against an in-process cache or a fast key-value store; low cost.
+- Budgets (atomic counter): ~1–3 ms against a Redis atomic operation.
+- Preview/dry-run: adds human latency (seconds to minutes) for high-value actions; zero added latency for actions below the preview threshold.
+
+If overhead must be cut in half, the first candidate is the **post-model content classifier** — it is the most expensive layer and the least certifiable. Removing it degrades rate-reduction but does not compromise the load-bearing guarantee, which lives entirely at the pre-effect seam. Never remove a pre-effect validator to save latency; that is the only layer whose guarantee is certifiable.
+
+**Deliverable 5 — Kill-switch design**
+
+The kill switch operates at two scopes: per-task (cancel a single running workflow) and fleet-wide (halt all agent tasks). For in-flight payment and email calls the preemption mechanism must not depend on the running process reading a signal — it operates by revoking the capability the process needs to proceed: the short-lived API token for payments, the SMTP relay credential for email. Token TTL is set to 60 seconds; revocation propagates within one TTL window. A kill signal therefore stops new calls immediately and any in-flight retries within 60 seconds. Testing procedure: in a staging environment, issue a fleet-wide kill signal while a scripted bulk-send of 50 emails is running; assert that the in-flight-call counter in the observability dashboard reaches zero within 90 seconds and that no email is sent after the signal timestamp. Run the same test for a payment sequence. Document the test result and timestamp in the incident-runbook as the last-verified preemption latency.
 
 *Review standard.* Every load-bearing control sits at the effect seam and checks a fact, not an interpretation; no single layer is the only thing standing between the agent and a catastrophic action; the payment amount cap, payee allow-list, and email recipient scope are stated as concrete deterministic rules; the reversibility layer prepares its undo before the action; and you can name, for each capability, the exact reachable maximum after all five layers are in place — and defend that it is small.
 

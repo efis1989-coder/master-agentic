@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseAnswerBlock,
   parseChapter,
+  parseExercise,
   parseSelfTest,
   verdictToBoolean,
 } from "../src/content/chapterParser";
@@ -145,5 +146,105 @@ describe("parseChapter (direct)", () => {
     expect(ch.slug).toBe("chapter-0-1-agentic-spectrum");
     expect(ch.selfTest[0]?.id).toBe("ch-0-1/selftest/1");
     expect(ch.exercise?.id).toBe("ch-0-1/exercise");
+  });
+});
+
+describe("self-test answer-leak regression (Format A)", () => {
+  // Regression: the trailing "*(Answers are argued…: 1-false — …)*" block used to be
+  // appended to claim 5's text by collectNumberedItems, revealing every argued answer
+  // before submit. No claim's visible text may contain the answer key.
+  it("keeps the Format-A answer key out of every claim's text", () => {
+    for (const id of ["ch-0-1", "ch-1-1", "ch-2-5"]) {
+      const ch = course.byId.get(id);
+      expect(ch, `${id} present`).toBeDefined();
+      for (const claim of ch?.selfTest ?? []) {
+        expect(claim.claim, `${claim.id} text`).not.toContain("Answers are argued");
+        expect(claim.claim, `${claim.id} text`).not.toMatch(/\b\d-(?:true|false)/);
+      }
+    }
+  });
+
+  it("still resolves the argued answer for the last Format-A claim", () => {
+    const claim5 = course.byId.get("ch-0-1")?.selfTest.find((c) => c.index === 5);
+    expect(claim5?.gradable).toBe(true);
+    expect(claim5?.answerText).toContain("action classes");
+  });
+
+  it("leaves inline-answer Format-B chapters untouched", () => {
+    const ch = course.byId.get("ch-3-1");
+    expect(ch?.selfTest).toHaveLength(5);
+    for (const claim of ch?.selfTest ?? []) {
+      expect(claim.gradable).toBe(true);
+      expect(claim.claim.length).toBeGreaterThan(0);
+      expect(claim.answerText.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("parseExercise (§6 markers)", () => {
+  it("builds a deterministic check whose answers are all valid options", () => {
+    const ex = course.byId.get("ch-0-1")?.exercise;
+    expect(ex?.check).not.toBeNull();
+    expect(ex?.check?.kind).toBe("select");
+    expect(ex?.check?.items).toHaveLength(5);
+    for (const item of ex?.check?.items ?? []) {
+      expect(ex?.check?.options).toContain(item.correct);
+      expect(item.id).toBe(`ch-0-1/exercise/check/${item.index}`);
+    }
+    expect(ex?.sampleSolution).toBeTruthy();
+    expect(ex?.reviewStandard).toBeTruthy();
+  });
+
+  it("strips every authored marker's label out of the prompt", () => {
+    const ex = course.byId.get("ch-0-1")?.exercise;
+    expect(ex?.prompt).not.toMatch(/\*(?:Options|Check|Sample solution|Review standard):\*/);
+  });
+
+  it("parses Options/Check/Sample solution from a synthetic §6 block", () => {
+    const md = [
+      "Place each brief on the spectrum.",
+      "",
+      "*Options:* Pipeline · Workflow · Agent",
+      "",
+      "*Check:*",
+      "",
+      "| Item | Answer | Why |",
+      "| --- | --- | --- |",
+      "| Invoicing | Pipeline | Enumerable and cheap to verify. |",
+      "| Triage | Workflow | Predictable path, reviewed output. |",
+      "",
+      "*Sample solution:* Verification funds any autonomy above workflow.",
+      "",
+      "*Review standard:* placements must genuinely differ.",
+    ].join("\n");
+    const ex = parseExercise(md, "ch-x");
+    expect(ex.prompt).toBe("Place each brief on the spectrum.");
+    expect(ex.check?.options).toEqual(["Pipeline", "Workflow", "Agent"]);
+    expect(ex.check?.items.map((i) => i.correct)).toEqual(["Pipeline", "Workflow"]);
+    expect(ex.check?.items[0]?.rationale).toContain("Enumerable");
+    expect(ex.sampleSolution).toContain("Verification funds");
+    expect(ex.reviewStandard).toContain("genuinely differ");
+  });
+
+  it("falls back to prompt-only when no markers are authored", () => {
+    const ex = parseExercise("Just design something and defend it.", "ch-y");
+    expect(ex.prompt).toBe("Just design something and defend it.");
+    expect(ex.check).toBeNull();
+    expect(ex.sampleSolution).toBeNull();
+    expect(ex.reviewStandard).toBeNull();
+  });
+
+  it("rejects a check whose answer is not one of the options", () => {
+    const md = [
+      "*Options:* Pipeline · Workflow",
+      "",
+      "*Check:*",
+      "",
+      "| Item | Answer |",
+      "| --- | --- |",
+      "| Invoicing | Autonomous agent |",
+    ].join("\n");
+    const ex = parseExercise(md, "ch-z");
+    expect(ex.check).toBeNull();
   });
 });

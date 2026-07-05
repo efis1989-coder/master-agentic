@@ -1,5 +1,7 @@
 import type {
   Chapter,
+  DesignCheck,
+  DesignCheckItem,
   DesignExercise,
   DomainId,
   IncidentHook,
@@ -13,8 +15,10 @@ import {
   fileSlug,
   findSection,
   isDomainId,
+  parseMarkdownTable,
   splitSections,
   stripEmphasis,
+  stripInlineEmphasis,
   stripQuotes,
 } from "./parseUtils";
 import { PART_NAMES } from "./partNames";
@@ -129,11 +133,13 @@ export function parseSelfTest(sectionMd: string, chapterId: string): SelfTestCla
 }
 
 function parseSelfTestFormatA(body: string, chapterId: string): SelfTestClaim[] {
-  const claims = collectNumberedItems(body).map((c) => stripQuotes(c.text));
-  const answerLine = body
-    .split("\n")
-    .find((l) => /^\*\(.*\d-/.test(l.trim()))
-    ?.trim();
+  const answerLineRaw = body.split("\n").find((l) => /^\*\(.*\d-/.test(l.trim()));
+  // Remove the answer key before collecting numbered claims. Otherwise
+  // `collectNumberedItems` appends this trailing, non-numbered line onto the
+  // last claim's text, leaking every argued answer into claim 5 before submit.
+  const claimBody = answerLineRaw ? body.replace(answerLineRaw, "") : body;
+  const claims = collectNumberedItems(claimBody).map((c) => stripQuotes(c.text));
+  const answerLine = answerLineRaw?.trim();
   const answers = answerLine ? parseAnswerBlock(answerLine) : new Map<number, string>();
 
   return claims.slice(0, 5).map((claim, i) => {
@@ -234,13 +240,89 @@ export function parseSrsCards(sectionMd: string, chapterId: string): SrsPrompt[]
   }));
 }
 
-/** §6 design exercise → prompt + optional review standard. */
+// §6 authored markers. Each is a label-only regex (no content capture) so a
+// marker's block can be sliced by index from its label to the next marker.
+type ExerciseMarker = "review" | "options" | "check" | "sample";
+const EXERCISE_MARKERS: Record<ExerciseMarker, RegExp> = {
+  review: /\*Review standard:\*/,
+  options: /\*Options:\*/,
+  check: /\*Check:\*/,
+  sample: /\*Sample solution:\*/,
+};
+
+/**
+ * Build a deterministic §6 dropdown check from an authored `*Options:*` list and
+ * `*Check:*` table. Options are `·`-separated (falling back to `,`); the table is
+ * `| Item | Answer | Why |` (Why optional). Returns null — falling back to the
+ * current free-text exercise — unless both blocks are present, at least one item
+ * parses, and every item's answer is one of the shared options (so a mis-authored
+ * check never renders a dropdown the learner can't answer correctly).
+ */
+function buildDesignCheck(
+  chapterId: string,
+  optionsRaw: string | null,
+  checkRaw: string | null,
+): DesignCheck | null {
+  if (!optionsRaw || !checkRaw) return null;
+  const separator = optionsRaw.includes("·") ? "·" : ",";
+  const options = optionsRaw
+    .split(separator)
+    .map((o) => stripEmphasis(o.trim()))
+    .filter(Boolean);
+  if (options.length === 0) return null;
+
+  const items: DesignCheckItem[] = [];
+  for (const cells of parseMarkdownTable(checkRaw)) {
+    const label = stripEmphasis((cells[0] ?? "").trim());
+    const correct = stripEmphasis((cells[1] ?? "").trim());
+    const why = (cells[2] ?? "").trim();
+    if (!label || !correct) continue;
+    const index = items.length + 1;
+    items.push({
+      id: `${chapterId}/exercise/check/${index}`,
+      index,
+      label,
+      correct,
+      rationale: why || null,
+    });
+  }
+  if (items.length === 0) return null;
+  if (!items.every((it) => options.includes(it.correct))) return null;
+
+  return { kind: "select", options, items };
+}
+
+/**
+ * §6 design exercise → prompt + optional review standard, deterministic dropdown
+ * check, and revealable sample solution. The prompt is everything before the
+ * earliest authored marker (`*Review standard:*` / `*Options:*` / `*Check:*` /
+ * `*Sample solution:*`); each marker's block runs to the next marker or end. When
+ * no markers are authored this returns the same prompt-only shape as before.
+ */
 export function parseExercise(sectionMd: string, chapterId: string): DesignExercise {
   const body = beforeHorizontalRule(sectionMd);
-  const stdMatch = /\*Review standard:\*\s*(.*)/s.exec(body);
-  const reviewStandard = stdMatch ? (stdMatch[1] ?? "").trim() : null;
-  const prompt = stdMatch ? body.slice(0, stdMatch.index).trim() : body.trim();
-  return { id: `${chapterId}/exercise`, prompt, reviewStandard };
+
+  const found = (Object.entries(EXERCISE_MARKERS) as [ExerciseMarker, RegExp][])
+    .map(([key, re]) => ({ key, index: re.exec(body)?.index ?? -1 }))
+    .filter((m) => m.index >= 0)
+    .sort((a, b) => a.index - b.index);
+
+  const firstMarker = found[0]?.index ?? body.length;
+  const prompt = body.slice(0, firstMarker).trim();
+
+  const blockOf = (key: ExerciseMarker): string | null => {
+    const pos = found.findIndex((m) => m.key === key);
+    if (pos === -1) return null;
+    const start = found[pos]?.index ?? 0;
+    const end = found[pos + 1]?.index ?? body.length;
+    return body.slice(start, end).replace(EXERCISE_MARKERS[key], "").trim();
+  };
+
+  const reviewStandard = blockOf("review");
+  const check = buildDesignCheck(chapterId, blockOf("options"), blockOf("check"));
+  const sampleSolution = blockOf("sample");
+
+  return { id: `${chapterId}/exercise`, prompt, reviewStandard, check, sampleSolution };
 }
 
 /** E1 — §1 incident cold open + its closing "what got skipped?" question. */
@@ -251,12 +333,19 @@ function parseIncident(sectionMd: string): IncidentHook {
   return { markdown: md, skippedQuestion };
 }
 
-/** E9 — the standalone bold doctrine sentence (first "**…**" on its own line). */
+/**
+ * E9 — the standalone bold doctrine sentence: the first line that is a *single*
+ * `**…**` span (no internal emphasis) on its own line. Requiring the span to run
+ * unbroken to the end of the line (`[^*]+` — no interior `*`) rejects a whole
+ * paragraph that merely *starts* and *ends* with a bold span (e.g. a "**Term** —
+ * …prose… **thesis.**" lead paragraph), so only the isolated thesis sentence is
+ * captured.
+ */
 function parseDoctrine(body: string): string | null {
   const line = body
     .split("\n")
     .map((l) => l.trim())
-    .find((l) => /^\*\*[^*].*\*\*$/.test(l) && !/Doctrine check/i.test(l));
+    .find((l) => /^\*\*[^*]+\*\*$/.test(l) && !/Doctrine check/i.test(l));
   return line ? stripEmphasis(line) : null;
 }
 
@@ -271,7 +360,10 @@ function parseDoctrineCheck(body: string): string | null {
     if (!l.startsWith(">")) break;
     text += (text ? " " : "") + l.replace(/^>\s?/, "").trim();
   }
-  return text.replace(/\*\*Doctrine check\.?\*\*/i, "").trim();
+  const withoutLabel = text.replace(/\*\*Doctrine check\.?\*\*/i, "").trim();
+  // The check paragraph carries the author's inline emphasis (`*italic*`, the odd
+  // `**bold**`); the Doctrine page renders it as plain text, so strip the markers.
+  return stripInlineEmphasis(withoutLabel);
 }
 
 /** Parse a raw chapter markdown file into a Chapter. Pure: no Vite/Node deps. */

@@ -29,11 +29,35 @@ export interface SrsPrompt {
   prompt: string;
 }
 
+/** One row of a deterministic §6 "select the right option" check: a labeled item + its key. */
+export interface DesignCheckItem {
+  id: string; // `${chapterId}/exercise/check/${index}`
+  index: number;
+  /** The item being judged, e.g. a task brief to place on the spectrum. */
+  label: string;
+  /** The correct option; always equals one of the parent DesignCheck.options. */
+  correct: string;
+  /** One-line "why", revealed after submit (never lost to the binary tick). */
+  rationale: string | null;
+}
+
+/** A deterministic, auto-checkable §6 task: pick the right option for each item. */
+export interface DesignCheck {
+  kind: "select"; // room for "order" | "matching" later
+  /** Shared dropdown options offered for every item. */
+  options: string[];
+  items: DesignCheckItem[];
+}
+
 /** The §6 design exercise: a whiteboard prompt + (sometimes) an explicit review standard. */
 export interface DesignExercise {
   id: string;
   prompt: string;
   reviewStandard: string | null;
+  /** Deterministic dropdown check, when the exercise has one right option per item. */
+  check: DesignCheck | null;
+  /** Revealable "book solution" for the open portion, self-compared by the learner. */
+  sampleSolution: string | null;
 }
 
 export interface ChapterSection {

@@ -10,6 +10,8 @@ Here is the arithmetic that ended the afternoon. Under normal load the system ma
 
 The postmortem was short. The provider's degradation was ordinary — brownouts happen, that is why SLAs are not 100%. What was not ordinary was that the system amplified it. The team had written retry logic that assumed failures were rare and independent; under a correlated degradation, that assumption inverted the retry from a safety mechanism into an accelerant. The question they had never asked was **not "what do we do when a call fails," but "what does our system do to the failure — does it absorb a degradation or amplify it — and have we designed our own degraded state as deliberately as we designed the happy path?"**
 
+**A system whose response to a degrading dependency is to send it more traffic is not resilient, it is an amplifier that converts an ordinary brownout into a total outage with a token bill attached; resilience means backoff, circuit breakers, and budget ceilings that make your degraded state a design you chose, not an accident you discover.**
+
 ## 2. The mental model
 
 ### 2.1 SRE discipline meets a probabilistic core
@@ -83,6 +85,47 @@ The resilience stack in this chapter is model-agnostic — timeouts, backoff, br
 ## 6. Design exercise
 
 Design the full *resilience policy* for a customer-facing agent with a **99.5% availability target** (roughly 3.6 hours of allowed downtime per month) that also carries a *grounded-answer quality SLO*. Your policy must specify: the *SLO set* — the exact availability, latency, and quality targets, and how the error budget is split across them; the *resilience-stack settings* — per-call and per-task timeouts, the retry budget (attempts and dollars) with backoff-and-jitter parameters, circuit-breaker thresholds per provider/tool, and the bulkhead boundaries; the *four-stage degradation ladder* — full agent → constrained workflow → cached answer → human queue, with the specific quality metric guarding each transition and the task types allowed to descend to each rung; and the *load-shedding plan* — the priority classes and the rule for what gets shed first under a rate-limit ceiling.
+
+*Options:* Exponential backoff with jitter · Immediate retry, fixed count · Circuit breaker per provider · Single global circuit breaker · Idempotency key on every effectful call · Retry without idempotency key · Eval-gate every fallback rung · Ship fallback untested · Priority-class load shedding · Uniform degradation under load
+
+*Check:* Each item below names a structural decision in the resilience policy; choose the mechanism the chapter prescribes.
+
+| Item | Answer | Why |
+|---|---|---|
+| Retry shape to prevent synchronized stampede | Exponential backoff with jitter | Randomized, lengthening delays spread retry load over time, breaking the lockstep surge that tripled volume in the failure story |
+| Scope of circuit breakers | Circuit breaker per provider | Per-provider granularity isolates a failing dependency without taking down unaffected paths; a single global breaker is too coarse |
+| Guard against double-effect on retry | Idempotency key on every effectful call | Keys let the effect seam deduplicate a retried action that already succeeded, preventing double-refund-class hazards |
+| Quality assurance for each fallback rung | Eval-gate every fallback rung | Each rung's quality number must be known in advance so a transition never silently breaches the grounded-answer SLO |
+| Capacity allocation under a rate-limit ceiling | Priority-class load shedding | Shedding low-priority work first protects revenue-critical tasks; uniform degradation wastes scarce capacity equally across low- and high-value work |
+
+*Sample solution:* A complete resilience policy for the 99.5%-availability, grounded-answer-SLO agent should address all four specified areas as follows.
+
+**SLO set and error-budget split.**
+- Availability target: 99.5% (≈3.6 h/month allowed downtime). Allocate roughly half the error budget here.
+- Latency target: p95 ≤ 8 s end-to-end for full-agent tasks; p99 ≤ 20 s.
+- Quality target: grounded-answer rate ≥ 95% (measured via automated LLM-judge grader per Ch. 4.2). Allocate the remaining budget here so a quality regression triggers an incident exactly as an availability dip does.
+- When the quality SLO is breached during a failover window, that window counts against the error budget; "uptime green, quality red" is still an incident.
+
+**Resilience-stack settings.**
+- Per-call timeout: 10 s for model calls; 3 s for tool/MCP calls.
+- Per-task timeout: 60 s total wall-clock; the orchestrator cancels and routes to the next degradation rung once exceeded.
+- Retry budget: maximum 3 attempts per call; exponential backoff starting at 1 s with ×2 multiplier; ±50% jitter on each interval (so attempt 2 waits 1–3 s, attempt 3 waits 2–6 s). Dollar ceiling: no single task may spend more than 2× its average token cost in retries; a per-task retry-spend counter aborts the loop when the ceiling is hit.
+- Circuit-breaker thresholds (per provider and per MCP tool): open after 5 failures in a 30 s window; half-open probe after 60 s cooling-off; require 3 consecutive successes to close. Separate breakers for Provider A and Provider B ensure one degradation does not mask the other.
+- Idempotency keys: every effectful tool call (writes, payments, notifications) carries a UUID generated at task start; the effect seam deduplicates on the key before executing, so any retry of a timed-out call that already succeeded is a no-op.
+- Bulkheads: separate thread/connection pools for (a) real-time customer-facing tasks and (b) background/batch tasks; a batch surge cannot exhaust the connection pool that serves interactive requests.
+
+**Four-stage degradation ladder.**
+- Rung 1 — Full agent: primary provider, full tool set, full context. Quality baseline: grounded-answer rate ≥ 95%. All task types allowed.
+- Rung 2 — Constrained deterministic workflow: provider B (eval'd independently; known quality number ≥ 88%); tool set restricted to read-only calls; no long-horizon planning steps. Transition trigger: primary circuit breaker open OR grounded-answer rate drops below 92% in a 5-min window. Allowed task types: all except claims denial and high-stakes financial actions.
+- Rung 3 — Cached answer: return the most recent eval-verified answer for the same intent class, stamped with a recency indicator. Quality floor: cached answers must be ≤ 24 h old and must have passed the grounded-answer eval at cache time. Transition trigger: Rung 2 circuit breaker open OR quality on Rung 2 drops below 85%. Allowed task types: low-stakes informational queries only.
+- Rung 4 — Human queue: route to a human agent with full task context attached. No quality floor (human handles it). Transition trigger: Rung 3 unavailable OR task type is claims denial / high-stakes financial. Claims denial and high-stakes financial tasks may only descend as far as Rung 4 and may never use Rung 2 or 3.
+- Every rung except Rung 4 has been exercised in game-day drills and carries its own eval-suite quality number. The human queue has a modeled capacity ceiling; overflow pages on-call when the queue depth exceeds 80% of that ceiling.
+
+**Load-shedding plan.**
+- Priority class P0 (protect always): real-time customer-facing tasks with a revenue or compliance dimension (checkout, claims, account recovery). Never shed.
+- Priority class P1 (shed last): interactive informational queries (product questions, status checks). Shed only when P0 demand alone saturates capacity.
+- Priority class P2 (shed first): background and batch tasks (digest generation, bulk summarisation, analytics enrichment). Shed as soon as a rate-limit ceiling is approached.
+- Admission-control rule: when the rate-limit utilisation metric exceeds 80%, reject new P2 tasks immediately with a retriable error and a Retry-After header. At 95% utilisation, also queue P1 tasks behind P0; if P1 queue depth exceeds 200 requests, start shedding P1 as well. P0 is never subject to shedding at any utilisation level.
 
 **Review standard.** A strong answer designs the degraded state as deliberately as the happy path: every fallback rung has a known, eval'd quality number and an explicit quality-metric guard, so no failover silently breaches the quality SLO; retries are budgeted in dollars as well as attempts and carry backoff-plus-jitter, so a brownout cannot be amplified into an outage; idempotency keys sit on the effect seam so retries cannot double-execute; and the answer treats a backup provider as a distinct evaluated target with audited independence, not an interchangeable commodity. A weak answer adds retries and a failover, assumes the backup is as good as the primary, and rebuilds the exact amplifier that lost the afternoon in the failure story.
 
