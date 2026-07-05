@@ -12,6 +12,8 @@ Every layer below the product worked. The 91% task success was real. But task su
 
 The question the roadmap never asked: **what does the human need to see, control, and believe for this system's correctness to become the user's confidence?**
 
+**Task success is a machine metric, not a product outcome; an agent earns adoption only when its interface makes the user's trust accurate — showing at every moment what the agent is doing and how reliable it is, so the autonomy granted matches the autonomy the agent has earned.**
+
 ## 2. The mental model
 
 ### 2.1 Trust is the product loop
@@ -100,6 +102,52 @@ Design the trust ladder for the claims agent. Deliver:
 3. For each transition, the measured criterion that must clear before the product *offers* the next level — the honest evidence (intervention rate below X on this task class, recovery rate above Y) that the agent has earned the promotion. The product offers autonomy the agent has proven, not autonomy the user merely wants.
 4. The narration, plan-preview, interrupt, and undo affordances present at each level, and how they change as autonomy increases.
 5. The four product metrics you would put on the dashboard, and specifically how each one would have caught the 60%-churn failure that a 91% task-success metric hid.
+
+*Options:* Intervention rate · Delegation depth · Trust-adjusted retention · Recovery rate after first failure · Task success rate · Time-to-completion
+
+*Check:* Match each product metric (item 5) to the one option that names it. The four metrics are stated explicitly in §2.5 and §3.
+
+| Item | Answer | Why |
+|---|---|---|
+| Metric that falls as the agent earns trust on a task class | Intervention rate | §2.5: "falling intervention is the agent earning trust" — it is the primary signal that earned autonomy is widening |
+| Metric that shows users voluntarily granting more autonomy over time | Delegation depth | §2.5: "delegation depth over time … users granting more autonomy is the honest NPS of an agent" |
+| Metric that would have predicted the 60%-churn outcome that task success hid | Trust-adjusted retention | §2.5: "trust-adjusted retention (do users come back, which the failure story's 91% completely failed to predict)" |
+| Metric that determines whether the product survives its first visible mistake | Recovery rate after first failure | §2.5: "given blame asymmetry, whether the product survives its first visible mistake is often the whole ballgame" |
+
+*Sample solution:* A defensible ladder combines five graduated autonomy levels, explicit promotion gates, and narration/preview/interrupt/undo affordances scaled to each level's blast radius.
+
+**Autonomy levels (most supervised → most autonomous):**
+
+- **Level 1 — Observe only.** The agent reads the claim, surfaces relevant policy sections, and flags questions, but the adjuster does all analysis and decisions. Narration is full; plan-preview shows what the agent read; interrupt is irrelevant (nothing is being acted on); undo is irrelevant. Blast radius: zero.
+- **Level 2 — Draft for review.** The agent drafts a complete recommendation (approve/deny, amount, coverage basis) but takes no action. The adjuster reads the draft, edits freely, and submits manually. Full narration and plan-preview; interrupt available to stop a draft mid-generation; no undo needed (nothing is committed). Blast radius: draft only.
+- **Level 3 — Approve with confirmation.** The agent approves routine claims within policy limits and sends a confirmation to the policyholder after a 60-second cancellation window. Plan-preview is mandatory ("I will approve $4,200 — cancel before 60 s"); visible countdown timer; one-click interrupt/cancel; explicit undo button within the window. Blast radius: reversible within window.
+- **Level 4 — Straight-through for routine claim classes.** The agent handles a defined class of low-complexity claims (e.g., auto glass below $800) without per-claim review, but surfaces a daily digest of all actions taken with per-item undo available for 24 h. Narration moves to batch digest; plan-preview is replaced by policy-class boundary display; interrupt is daily digest override; undo per-item in digest. Blast radius: bounded by policy class and 24-h reversal window.
+- **Level 5 — Full autonomy on approved claim classes.** The agent handles all claims within an approved class end-to-end, logs every decision with full audit trail, and escalates only on exception. Narration is audit log; no per-claim preview; interrupt is escalation trigger only; undo is audit-log-based reversal within policy. Blast radius: full class scope, mitigated by audit trail and escalation path.
+
+**Transition affordances (UI):**
+
+- L1 → L2: "Let the agent draft recommendations" toggle on the adjuster's settings page, paired with a one-sentence scope statement ("The agent will draft; you decide and submit"). Risk disclosure: none beyond the draft itself.
+- L2 → L3: A banner in the workflow — "The agent has drafted accurately on your last 20 claims with no overrides. Enable auto-approval with a 60-second cancel window?" — with a "See how it works" explainer showing the countdown and cancel button before activation.
+- L3 → L4: A supervisor-approved policy-class enrollment screen listing exactly which claim types will be handled straight-through, the dollar ceiling, and a link to the 24-h digest and per-item undo. Activation requires both adjuster and supervisor sign-off.
+- L4 → L5: A formal onboarding step available only to tenured adjusters, with a review of the audit trail, a test of the escalation trigger, and an explicit scope-boundary acknowledgment. The UI states the envelope and the consequence of misuse before activation.
+
+**Promotion criteria (earned-trust gates):**
+
+- L1 → L2: No quantitative gate; available immediately. The agent must have been used at least five times in observe mode.
+- L2 → L3: Intervention rate on drafted claims below 15% over the last 30 drafts (i.e., the adjuster accepted or made only minor edits at least 85% of the time); zero overrides that flagged a policy mis-read.
+- L3 → L4: Intervention rate on auto-approved claims below 5% over 60 claims in the target class; recovery rate after the first visible error above 80% (adjuster continued using the agent after the error).
+- L4 → L5: Intervention rate below 2% on the class over 90 days; delegation depth increasing (not flat or declining); zero unrecovered trust events in the preceding 30 days; supervisor sign-off.
+
+**Narration, preview, interrupt, undo by level:**
+
+At Level 1 and 2, all four affordances are fully visible because the blast radius is zero or draft-only — the richest narration is here, where users are learning what the agent does. As autonomy increases to Level 3 and 4, narration shifts from per-step to per-decision to batch digest, because the agent has earned enough trust that full step narration is noise; however, interrupt and undo become more prominent precisely because the stakes of an unnoticed action are higher. At Level 5, the audit log replaces narration entirely, and the escalation trigger replaces interrupt — the affordances match the earned reliability, not the maximum possible fear.
+
+**Item 5 — four metrics and how they expose the failure story:**
+
+- *Intervention rate:* a 91% task-success metric hides who is correcting whom; intervention rate would have shown adjusters were overriding or redoing the agent's work constantly, revealing the trust gap directly.
+- *Delegation depth:* if users never moved beyond Level 1 despite high task success, delegation depth would have been flat — the clearest possible signal that the product was not building trust.
+- *Trust-adjusted retention:* 60%-weekly-churn is exactly this metric; it would have been on day one of the dashboard, not discovered in the churn report.
+- *Recovery rate after first failure:* blame asymmetry means the first visible error is often terminal; tracking recovery rate would have shown that almost no adjuster returned after a first mistake, which task success conceals entirely.
 
 **Review standard.** The ladder is a genuine gradient with a usable middle, not a manual/autonomous toggle; each promotion is gated on measured earned trust, not user preference alone; every autonomy level surfaces the human-facing affordances (narration, preview, interrupt, undo) appropriate to its blast radius; the error/recovery flow is designed with visible care; and your metrics measure the human's calibrated delegation, not just the machine's accuracy.
 

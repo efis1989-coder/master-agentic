@@ -14,6 +14,8 @@ Root cause was not the model. The model followed the new instruction faithfully.
 
 The team never asked the question that governs every production prompt: **what downstream contract does this text guarantee, and what enforces the guarantee when the words change?** This chapter treats the prompt as what it is — a versioned, tested interface — not as writing.
 
+**A prompt is a versioned, tested interface contract, not prose; the guarantee it makes to downstream systems must be enforced by a validator at the seam, because an instruction the model was merely told to follow is not an integrity control.**
+
 ---
 
 ## 2. The mental model
@@ -121,6 +123,39 @@ Write the *output-contract section* of a system prompt for an agent whose JSON o
 1. Specify the contract: every field, its type, its allowed range or enum, required vs optional, and the exact serialization of monetary amounts (settle the number-vs-string question and defend it).
 2. Enumerate **every way the contract can be violated** — wrong type, out-of-range, extra field, missing field, ambiguous amount, injected content in a free-text field — and for each, name the **validation-layer check** that catches it before anything posts.
 3. State the **coupling**: which model version this contract is validated against, and what must happen to the contract when that model is upgraded.
+
+*Sample solution:* A passing answer treats the output-contract section as a machine-readable specification enforced in code, not as a prose wish-list. The three parts should look roughly like this.
+
+**Part 1 — Contract specification (output-contract section of the system prompt):**
+
+- `transaction_id` — string, UUID v4 format, required. Uniquely identifies the source transaction; no two records in the same batch may share a value.
+- `amount` — integer (minor currency units, i.e. cents), required, range 1–9 999 999 99 (one dollar to $9,999,999.99). Serialized as a JSON number with no decimal point, no thousands separator, no currency symbol — e.g. `124000` means $1,240.00. The number-vs-string decision is settled in favor of integer-in-minor-units: it eliminates the "1,240.00" vs `1240.0` ambiguity the payments incident introduced, survives every JSON parser without coercion, and leaves rounding policy to the caller.
+- `currency` — string, ISO 4217 three-letter code, required, enum: `["USD","EUR","GBP","CAD","AUD"]`. No other values are accepted.
+- `direction` — string, required, enum: `["DEBIT","CREDIT"]`.
+- `posted_at` — string, ISO 8601 UTC datetime (`YYYY-MM-DDTHH:MM:SSZ`), required.
+- `memo` — string, optional, max 200 characters, plain text only (no HTML, no URLs, no JSON fragments).
+- No additional fields. Extra properties must be rejected, not silently ignored, to prevent exfiltration via unexpected keys (§2.5).
+
+**Part 2 — Violation catalog and validator checks:**
+
+| Violation | Validator check (code, not prompt) |
+|---|---|
+| `amount` is a string (`"1,240.00"`) | `typeof amount === 'number' && Number.isInteger(amount)` — strict type assertion; string → reject, not coerce |
+| `amount` is a float (`1240.0`) | `Number.isInteger(amount)` — reject non-integer; a float passes JSON parse but violates minor-units contract |
+| `amount` out of range | `amount >= 1 && amount <= 999999999` — range check before posting |
+| `currency` not in allowed enum | Allowlist check; reject any value not in the five-element enum, including case variants (`"usd"`) |
+| `direction` not in enum | Same allowlist pattern |
+| `posted_at` not parseable as UTC ISO 8601 | Regex + `Date.parse` validity check; reject malformed timestamps |
+| Missing required field | JSON schema validation (all required keys present) before any downstream processing |
+| Extra (undeclared) field | `additionalProperties: false` in schema; reject objects with unexpected keys — this is the exfiltration-channel check (§2.5) |
+| `memo` containing HTML/URL/JSON fragments | Regex or parser check; reject or strip before posting to prevent injection into downstream display or structured logging |
+| `transaction_id` duplicate within batch | Deduplication check at batch-processing time; reject second occurrence, not silently overwrite |
+
+A naive lenient parser would coerce `"1,240.00"` → `1240.0` → post `1240` cents instead of `124000` cents. The strict integer check above is the specific control that blocks this exact failure mode from the opening story.
+
+**Part 3 — Model–contract coupling:**
+
+This output contract is validated against **model version pinned in the registry** (e.g., `gpt-4o-2024-11-20` or equivalent). The coupling is explicit: the prompt file references the pinned model ID, and the CI regression suite runs the contract assertions against that pinned model before any change merges. When the model is upgraded, the following must happen as one coupled release: (a) re-run the full contract regression suite against the new model, (b) audit any new behaviors (field formats, enum expansion tendencies, memo verbosity) that could violate invariants, (c) if the suite passes unchanged, bump the prompt version and the model pin together in the registry, (d) if the suite reveals a regression, fix the contract and re-validate before shipping. A model upgrade that passes the suite in isolation but skips prompt re-validation is not a complete release.
 
 *Review standard:* every hard invariant must be enforced by a code-level check, not by prompt instruction alone (any invariant guarded only by "the prompt says so" fails the exercise); your amount serialization must be unambiguous and machine-parseable with no lenient coercion path; and you must name at least one violation your validator catches that a naive parser would silently coerce.
 

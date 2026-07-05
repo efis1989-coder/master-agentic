@@ -18,7 +18,9 @@ The model did nothing wrong. It proposed one correct entry. The system turned on
 
 The standing thesis of this whole manual becomes an architectural rule here. A production agentic system is not "an agent that does things." It is a **deterministic core** that does things, wrapped in a **probabilistic overlay** that *proposes* what to do. The agent's output is never an action; it is an **intent** — a typed, validated request that the deterministic core may accept, reject, or modify before anything touches the world. The humans, and the systems of record they own, remain the immutable ground truth against which every intent is checked.
 
-This is not a style preference. It is the only arrangement in which you can make correctness guarantees about a system whose smartest component is, by construction, occasionally wrong. **Anything that requires a correctness guarantee, an audit trail, or transactional integrity belongs in the deterministic core; the agent layer may only produce intents that the core validates and executes, because you cannot certify a system whose final authority is a probability distribution.**
+This is not a style preference. It is the only arrangement in which you can make correctness guarantees about a system whose smartest component is, by construction, occasionally wrong.
+
+**Anything that requires a correctness guarantee, an audit trail, or transactional integrity belongs in the deterministic core; the agent layer may only produce intents that the core validates and executes, because you cannot certify a system whose final authority is a probability distribution.**
 
 ### 2.2 Boundary criteria: what lives where
 
@@ -88,6 +90,22 @@ Claude's tool-use and extended-thinking behavior sits entirely on the overlay si
 ## 6. Design exercise
 
 Design the intent schema and execution seam for a single capability: *agent-initiated vendor payment up to $10,000*. Specify (a) the typed intent schema, naming every field the seam needs to validate the payment — payee, amount, currency, invoice reference, idempotency key, evidence pointer; (b) the validation and authorization checks the adapter runs before execution, including the invariant that caps the amount and the principal-rights check that derives authority from the human on whose behalf the agent acts; (c) the idempotency and compensation design — how a retry is deduped and how a payment is reversed if a downstream system fails; (d) the attribution stamp written on success; and (e) the *exact* condition that routes an intent to human approval instead of auto-execution.
+
+*Options:* The model · The deterministic seam · The human principal at runtime · A downstream payment API
+
+*Check:* Item (e) has a single defensible answer: who evaluates the human-approval routing condition?
+
+| Item | Answer | Why |
+|---|---|---|
+| (e) Who evaluates the human-approval routing condition? | The deterministic seam | The chapter states the trigger must be "a deterministic rule evaluated by the seam, never a judgment left to the model"; handing routing logic to the model re-introduces probabilistic authority over a correctness-critical decision |
+
+*Sample solution:* A strong design for this capability treats all five items as seam invariants, not model guidelines.
+
+- **(a) Typed intent schema** — `ProposeVendorPayment { payee_id: string, amount_cents: int, currency: "USD" | ..., invoice_ref: string, idempotency_key: uuid, evidence_pointer: string, human_principal_id: string, agent_session_id: string }`. Every field required; amount encoded as integer cents to avoid floating-point ambiguity; `payee_id` is a registered identifier, not a free-text name, so the seam can look up the payee's authorization status.
+- **(b) Validation and authorization checks** — Schema validation first (all fields present, types correct). Then invariant checks: `amount_cents <= 1_000_000` (the $10K cap expressed in cents, enforced by the adapter in code, not by prompt instruction); `payee_id` exists in the approved-vendor registry; `invoice_ref` is present and not already paid. Authorization: the seam derives the human principal's payment authority from `human_principal_id`, confirming the principal holds a role with `vendor_payment` rights and that the invoice is addressed to that principal's cost center.
+- **(c) Idempotency and compensation** — The seam checks `idempotency_key` against a dedupe store (keyed on `idempotency_key + payee_id + amount_cents`) before calling the payment processor; if found, it returns the cached result. Compensation: before executing, the seam prepares a `ReversePayment { original_intent_id, payee_id, amount_cents, reason }` record and persists it to a saga log. If the downstream payment API confirms but the ledger credit fails, the core runs the compensation automatically by issuing the reversal against the payment processor.
+- **(d) Attribution stamp** — On success the core writes: `{ intent_id, idempotency_key, human_principal_id, agent_session_id, tool_id: "vendor_payment_adapter", timestamp_utc, invoice_ref, evidence_pointer, amount_cents, payee_id }`. This record is immutable and stored in the audit ledger separately from the payment processor log, so "which writes were agent-initiated" is a single query on `agent_session_id IS NOT NULL`.
+- **(e) Human-approval routing** — The seam applies a deterministic ruleset before auto-executing: route to human approval if `amount_cents > 500_000` (over $5K), or `payee_id` has fewer than three prior paid invoices (new payee), or the payment deviates more than two standard deviations from the payee's rolling 90-day average. These are hard thresholds computed by the adapter; the model is never asked whether approval is needed.
 
 *Review standard.* A strong answer makes the dangerous action unrepresentable, not merely discouraged: the $10K cap is a schema and seam invariant, not a prompt instruction; the idempotency key is required, not optional; every payment carries a prepared compensation before it executes; and the human-approval trigger is a deterministic rule (amount threshold, new payee, anomalous pattern) evaluated by the seam, never a judgment left to the model. If your design relies on the model "being careful," it has not understood the chapter.
 

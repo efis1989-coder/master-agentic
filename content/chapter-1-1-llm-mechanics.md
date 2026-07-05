@@ -14,6 +14,8 @@ The rebuild inverted the theory. A retrieval step selected the three most releva
 
 Nobody had asked the question that governs every token you send: **what does this context cost in dollars, in latency, and in quality — and is the model even able to use it?** This chapter makes the context window what it actually is: a priced, scarce, quality-sensitive resource.
 
+**The context window is a priced, scarce, quality-sensitive resource, not free headroom; every token you send costs money and latency and can lower accuracy, so the design variable is the smallest ordered working set that answers the task.**
+
 ---
 
 ## 2. The mental model
@@ -117,6 +119,58 @@ Design the prompt architecture for a *support agent* workload: ~40 messages per 
 1. Lay out the prompt for **maximum cache reuse** across the 40 turns: state exactly what goes in the stable (cached) zone, what goes in the volatile zone, and why. Note what single change would invalidate the cache.
 2. **Estimate monthly cost** at 10,000 sessions. State your illustrative input/output/cached-input prices (flag them as illustrative), your assumed output tokens per turn, and your assumed cache-hit ratio. Show the arithmetic.
 3. Identify **the single biggest cost lever** and quantify the savings from pulling it. Then name the one quality risk that lever introduces.
+
+*Options:* Cache hit ratio · Output length discipline · Prompt trimming · Turns per task · Model downgrade
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| Single biggest cost lever (item 3) | Cache hit ratio | §2.5 names cache hit ratio on a large stable prefix as the first and highest-leverage lever, with ~10× reduction on the cached portion vs. all other levers operating on a smaller or more expensive per-token margin. |
+
+*Sample solution:*
+
+**Item 1 — Cache-aware layout:**
+
+Place the following in the **stable (cached) zone**, in this order:
+- System prompt (3,000 tokens) — changes on product releases only, not per-turn or per-session.
+- Tool schemas (5,000 tokens) — effectively a library of definitions; identical across all 40 turns and all 10,000 sessions.
+
+Place the following in the **volatile zone**, in this order (appended fresh each turn):
+- The accumulating conversation history (prior user and assistant turns) — grows by ~300 + ~output tokens each turn.
+- The current user turn (~300 tokens) — unique every request.
+
+Total stable prefix = 8,000 tokens. On turn 2 onward the cache is warm and that 8,000-token prefix is charged at cached-input rates. The single change that invalidates the entire cache: inserting any per-request variable (a session ID, a timestamp, a reordered tool list) anywhere in the stable 8,000-token block — changing even one byte forces full prefill from that position onward.
+
+**Item 2 — Monthly cost estimate (illustrative prices — verify at study time):**
+
+Assumptions:
+- Input price (fresh): $3.00 / 1M tokens
+- Input price (cached): $0.30 / 1M tokens (10× discount)
+- Output price: $15.00 / 1M tokens
+- Output tokens per turn: 400 (short support replies)
+- Cache-hit ratio on stable prefix: ~97.5% (turns 2–40 of 40 per session warm the cache; turn 1 is cold)
+- 10,000 sessions × 40 turns = 400,000 turns/month
+
+Token counts per turn:
+- Stable prefix: 8,000 tokens → 97.5% of turns pay cached rate, 2.5% pay fresh rate
+- Volatile/fresh input: grows across session; assume average ~6,000 tokens of conversation history + 300-token current turn ≈ 6,300 tokens fresh per turn (averaged over all 40 turns)
+- Output: 400 tokens per turn
+
+Line items:
+1. **Cached input**: 400,000 turns × 8,000 tokens × 0.975 × $0.30/1M = **$936/month**
+2. **Fresh input** (stable prefix cold hits + volatile per turn): (400,000 × 8,000 × 0.025 × $3.00/1M) + (400,000 × 6,300 × $3.00/1M) = $240 + $7,560 = **$7,800/month**
+3. **Output**: 400,000 turns × 400 tokens × $15.00/1M = **$2,400/month**
+
+**Total ≈ $11,136/month.** Note that fresh-input volatility dominates, not the cold cache misses.
+
+**Item 3 — Biggest lever:**
+
+The biggest lever is **cache hit ratio** on the stable 8,000-token prefix. If caching fails entirely (cache-hit ratio drops to 0%, e.g., a stray timestamp invalidates the prefix), the cached-input line item of $936 becomes fresh-input at ~10×: 400,000 × 8,000 × $3.00/1M = **$9,600/month** — an increase of ~$8,664/month (roughly +78% of total bill). No other single lever — not trimming 500 tokens off the system prompt, not compressing tool schemas — comes close to that swing.
+
+Comparison: cutting output tokens by 20% (80 tokens/turn) saves 400,000 × 80 × $15/1M = $480/month. High-value but far smaller than the cache lever.
+
+Quality risk of maximising cache reuse: freezing the stable prefix as a release-gated artifact slows prompt iteration. If a policy rule or tool schema needs updating, teams delay that fix to protect the cache, or accept a one-time full-prefill cost spike and a re-warm period — during which the product may behave on a stale prompt.
 
 *Review standard:* your cost estimate must separate cached-input, fresh-input, and output as three distinct line items (a blended per-call number fails the exercise); your biggest lever must be defended against at least one alternative with numbers; and you must name a quality risk, because every cost lever in this chapter has one.
 

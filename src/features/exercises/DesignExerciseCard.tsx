@@ -1,12 +1,21 @@
 import { MarkdownRenderer } from "../../components/MarkdownRenderer";
 import type { DesignExercise } from "../../content/types";
+import { DesignCheck } from "./DesignCheck";
 import styles from "./DesignExerciseCard.module.css";
 import { ExerciseControl } from "./ExerciseControl";
+import { SampleSolution } from "./SampleSolution";
 
 /**
  * §6 design exercise in the reader: the whiteboard prompt and its explicit
- * review standard, plus the shared done/answer control. The exercise is done
- * "aside"; ticking it feeds the `/exercises` board and the progress dashboard.
+ * review standard. Branches on the authored exercise shape:
+ *   - `check` present → a deterministic dropdown check (auto-scored, spoiler-gated),
+ *     which subsumes the done state via its own submit.
+ *   - otherwise → the shared free-text done/answer control.
+ * A `sampleSolution`, when authored, renders in either branch as a spoiler-gated
+ * "book solution" for the open half of the task (e.g. the residual reasoning a
+ * dropdown check can't score), placed after the interactive element so the learner
+ * commits first, then self-compares. Either way the exercise is done "aside";
+ * completion feeds the `/exercises` board and the progress dashboard.
  */
 export function DesignExerciseCard({
   title,
@@ -30,9 +39,20 @@ export function DesignExerciseCard({
           <MarkdownRenderer markdown={exercise.reviewStandard} />
         </div>
       )}
-      <div className={styles.actions}>
-        <ExerciseControl sourceId={exercise.id} kind="design" />
-      </div>
+      {exercise.check ? (
+        <div className={styles.actions}>
+          <DesignCheck exerciseId={exercise.id} check={exercise.check} />
+        </div>
+      ) : (
+        <div className={styles.actions}>
+          <ExerciseControl sourceId={exercise.id} kind="design" />
+        </div>
+      )}
+      {exercise.sampleSolution && (
+        <div className={styles.sample}>
+          <SampleSolution markdown={exercise.sampleSolution} />
+        </div>
+      )}
     </section>
   );
 }

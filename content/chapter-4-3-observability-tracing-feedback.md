@@ -10,6 +10,8 @@ The agent's model calls were in the LLM provider's dashboard, keyed by request I
 
 The numbers underneath the incident were their own indictment. *Five* disconnected log systems. *Zero* traces linking a tool call to the model turn that requested it. *Four hours* to reconstruct a single decision that the system had made in *eight seconds*. And because reconstruction was so expensive, it almost never happened — which meant the stale-retrieval bug had been misfiring for weeks, quietly, across an unknown number of customers, because no one could afford to look. The question the team had never engineered an answer to was **not "was the agent wrong," but "when the agent is wrong, can we reconstruct exactly why in minutes — and can we turn that reconstruction into the raw material that makes the eval suite better?"**
 
+**If reconstructing why the agent made one decision for one user takes more than minutes, you do not have observability, you have logs; a production agent needs one correlated trace that binds every model turn, tool call, retrieval, and guardrail into a single story, so debugging is a lookup rather than an archaeology dig.**
+
 ## 2. The mental model
 
 ### 2.1 Observability is the precondition for everything in Part IV
@@ -85,6 +87,33 @@ An agent built on Claude and MCP has a natural set of span boundaries, and using
 ## 6. Design exercise
 
 Specify the **trace schema and dashboard set** for the claims-processing agent from Chapter 3.3 — the one with a human reviewer in the loop. Your design must define: the *span taxonomy* — what spans you emit for each model call, tool call, retrieval, guardrail check, and human-review step, and what attributes each carries; the *capture-and-redaction policy* — which fields you store in full, which you tokenize, and the access and retention tiers for each; the *cost-attribution view* — how you roll spans up to cost per claim, per customer, and per task type; the **three alerts that page a human** — the specific online-eval or operational thresholds that warrant waking someone, and why those three and not others; and the *sampling plan* — how you stratify sampling so the weekly eval refresh sees the tail, and which traces you retain in full regardless of sampling.
+
+*Options:* Output-quality drift (online-eval score drop) · Input drift (distribution shift away from eval coverage) · Abandonment or retry spike (implicit feedback signal) · Orphaned span / broken causality (instrumentation failure) · Cardinality explosion (metrics backend cost spike)
+
+*Check:* Each of the three page-worthy alerts should target a distinct failure mode the chapter explicitly names. Match each alert slot to the signal that best fits it.
+
+| Item | Answer | Why |
+|---|---|---|
+| Alert 1 — quality regression | Output-quality drift (online-eval score drop) | The chapter states that when an online-eval metric crosses an SLO threshold it should page a human; this is the primary quality signal and the one the whole feedback loop is built to surface. |
+| Alert 2 — coverage gap | Input drift (distribution shift away from eval coverage) | The chapter names input drift alongside output-quality drift as one of the two things online eval watches for; if what users ask shifts away from what the eval set covers, scores become misleading and a human must act. |
+| Alert 3 — user-behavior signal | Abandonment or retry spike (implicit feedback signal) | The chapter calls abandonment "the loudest signal" of implicit feedback; a spike indicates real-world failure that online eval may not yet score, so it warrants a page independent of eval metrics. |
+
+*Sample solution:* A strong design for the claims-processing agent would look like the following.
+
+**Span taxonomy.** Emit one span per model call (attributes: model version, prompt version, token counts for prompt and completion, latency, cache-hit flag), one span per MCP tool invocation (tool name, input arguments, output, latency), one span per retrieval (query, retrieved-document IDs and versions, latency), one span per guardrail check (rule ID, verdict, latency), and one span per human-review step (reviewer role, decision, time-to-decision). Every span carries a `trace_id`, `span_id`, and `parent_span_id` to enforce causal linkage. Session-level attributes: `session_id`, `claim_id`, `customer_tier`, `task_type`. Release-level attributes stamped on every span: `model_version`, `prompt_version`, `tool_version`.
+
+**Capture-and-redaction policy.** Store in full: span structure and metadata, token counts, latencies, tool names, guardrail verdicts, model and prompt versions. Tokenize or redact at capture: claimant name, policy number, account number, health diagnosis codes, any free-text that contains PII. Access tiers: raw traces (including redacted payload) accessible only to on-call engineers under audit logging; aggregated/anonymized traces accessible to the broader team. Retention tiers: raw redacted traces retained 30 days (shortest defensible window for debugging); structured metadata (no PII) retained 12 months for trend analysis; regression-case excerpts retained indefinitely under separate access control.
+
+**Cost-attribution view.** Because each span carries token counts and model version, roll up: `sum(prompt_tokens + completion_tokens) * price_per_token` grouped by `claim_id` (cost per claim), `customer_tier` (cost per tier), and `task_type` (cost per workflow type). Expose as a dashboard view over the trace store — not a separate billing pipeline.
+
+**Three page-worthy alerts.**
+- Alert 1 (quality regression): online-eval score for claim decisions drops below the agreed SLO (e.g., accuracy judge below 0.90 on a 1-hour rolling window). Pages because output quality crossing SLO is the primary signal the feedback loop exists to catch.
+- Alert 2 (coverage gap): input-distribution drift detector reports that the embedding centroid of live claims has shifted beyond a set threshold from the eval-set centroid. Pages because eval scores become unreliable when users are asking something the eval set does not cover.
+- Alert 3 (user behavior): abandonment or retry rate on a claim session exceeds two standard deviations above the 7-day baseline. Pages because abandonment is the chapter's "loudest" implicit-feedback signal and surfaces failures that online eval has not yet scored.
+
+No other alerts page — an observability system that pages on everything trains humans to ignore it. Cardinality and instrumentation-health issues are logged and charted but do not page unless they degrade an SLO-linked metric.
+
+**Sampling plan.** Default: 10% uniform sample of routine claim sessions. Stratified oversampling: retain 100% of sessions where the claim value exceeds a threshold, where the customer tier is flagged as high-risk, or where the task type is "denial override" (the tail segment most likely to surface the stale-retrieval class of bug). Retain 100% of sessions that trigger any guardrail check, any human-review step, or any of the three page-worthy alerts. This ensures the weekly eval refresh is seeded from the tail, not the average, so a 2%-frequency bug in a specific tier is visible rather than diluted.
 
 **Review standard.** A strong answer makes every agent decision reconstructable end-to-end with parent-child span linkage, so "why did it decide this for this claim" is a pointer-follow and not a timestamp hunt; it resolves the debuggability-privacy tension with an explicit redaction-and-retention policy rather than capturing everything or nothing; it stamps version fields on every span so traces tie back to releases; it picks exactly three page-worthy alerts and defends the restraint, because an observability system that pages on everything trains its humans to ignore it; and it stratifies sampling to surface tail failures rather than uniformly sampling the average. A weak answer logs prompts and completions to one store, calls it observability, and rediscovers the four-hour dig the first time something breaks.
 

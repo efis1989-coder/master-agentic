@@ -10,6 +10,8 @@ A year later the CFO's office ran a full accounting, and the forty-fold savings 
 
 The initiative wasn't a failure — near-break-even automation of a real workload has strategic value. The *business case* was a failure, because it had been built on a token-price fantasy. The team had computed the cost of the model and called it the cost of the system. The question the deck never asked was: **what is the fully loaded cost of a resolved task — including the eval engineers, the human reviewers who scale with volume, the storage, the incidents, and the compliance — and does the value still clear that bar?**
 
+**The cost of the model is not the cost of the system, so an honest business case prices the fully loaded cost of a resolved task — the eval engineers, the human reviewers who scale with volume, the trace storage, the incidents, and the compliance — because a token-price ROI omits every denominator that grows with the workload and turns a forty-fold saving on paper into break-even in production.**
+
 ## 2. The mental model
 
 ### 2.1 ROI honestly computed
@@ -93,6 +95,38 @@ MCP and the interoperability stack (Ch. 5.6) matter to strategy as *lock-in and 
 ## 6. Design exercise
 
 Build the 18-month business case for an agent platform in a regulated vertical of your choice (credit, claims, tax, audit). Produce: a fully loaded TCO model (inference, eval engineering, volume-scaled review labor, storage/retention, incident response, compliance overhead, platform amortization); a pricing structure (per-seat, usage, or outcome — and if outcome, the eval that makes the outcome measurable); a staffing plan (platform team, embedded engineers, the eval owner, on-call ownership); and the two kill criteria — the specific, measured conditions under which you would *end the program*. Then stress-test it: identify the single largest cost you are least certain about and the Jevons risk if the workflow succeeds.
+
+*Sample solution:* The example below uses a **commercial insurance claims triage** vertical. Every number is illustrative; the structure, not the figures, is what matters.
+
+**TCO model (monthly, at 50,000 resolved claims/month steady state):**
+
+- Inference: $0.12 per claim × 50,000 = $6,000 (smallest line item)
+- Eval engineering: 1.5 FTE permanent (grader maintenance, adversarial test refresh, weekly eval review) ≈ $18,750
+- Volume-scaled review labor: 12% flagging rate × 50,000 = 6,000 claims reviewed by humans at $1.80 each = $10,800 — modeled as `$0.18 × flagging_rate × volume`, not a fixed line
+- Trace storage and audit retention (Ch. 4.7 90-day minimum): 2 TB/month × $0.023/GB = $47 (negligible at this volume; re-check at 500k)
+- Incident response: 0.5 FTE on-call rotation share ≈ $6,250
+- Compliance and legal overhead (regulator-ready audit packages, annual penetration test amortized): $4,000/month
+- Platform amortization (observability, CI/CD, reliability infra shared across 3 agent workflows): $3,500/month
+- **Total fully loaded cost: ~$49,350/month → $0.99 per resolved claim**
+
+**Pricing structure:** Outcome-based at $2.40 per resolved claim (margin: $1.41, ~59%). The enabling eval is a three-signal automated verifier: (1) coverage determination rendered within policy rules (deterministic rule check), (2) no downstream adjuster override within 14 days (outcome feedback loop, Ch. 4.3), (3) claimant dispute rate below 2% on auto-resolved batch (aggregate signal). Any claim the agent cannot confidently classify on all three signals is routed to human review and excluded from billable outcomes. This eval is the revenue dependency — without it, "resolved" is disputed in every contract renewal.
+
+**Staffing plan:**
+
+- Platform team (3 people): infra engineer, eval engineer (the eval owner — accountable for the validated verifiers as the compounding asset), SRE/on-call lead
+- Embedded agent engineers (2 people): own the claims-triage workflow, deploy changes through the platform team's release pipeline
+- Eval owner (named from the platform team): single accountable person for the verifier suite; carries the pager for eval-drift incidents
+- On-call rotation: platform team lead + one embedded engineer in weekly rotation; every agent in production maps to this rotation before launch
+
+**Kill criteria (both measured, both specific):**
+
+1. Cost per resolved claim exceeds $1.80 (current margin floor) for two consecutive calendar quarters, after documented attempts to reduce the flagging rate and eval engineering cost — the program is not economically viable at scale.
+2. Adjuster override rate on auto-resolved claims exceeds 8% in any rolling 30-day window for two consecutive months — the agent's accuracy has degraded below the threshold where outcome pricing is defensible, and continuing exposes the business to contract disputes and regulatory scrutiny.
+
+**Stress-test:**
+
+- Largest cost uncertainty: volume-scaled review labor. The 12% flagging rate is estimated from a pilot of 3,000 claims; the actual rate on production distribution may be 20–25%, which would raise the review-labor line to $18,000/month and compress margin to $0.21/claim — near break-even. This must be validated on a 10,000-claim pre-launch cohort before committing to the outcome price.
+- Jevons risk: at $2.40/resolved claim, the claims intake team may route previously-manual edge cases into the agent workflow to exploit the lower apparent cost, expanding volume by 40–60%. At $0.99 fully loaded cost and $2.40 price, that is fine economically — but review labor scales with it (at 12% flagging rate, +20,000 claims/month adds 2,400 human reviews), so headcount or vendor capacity for reviewers must be pre-authorized in the budget model, not discovered after the Jevons effect is already running.
 
 **Review standard.** A strong TCO model makes review labor a *function of volume*, not a fixed line, and includes eval engineering as permanent headcount — the two omissions that sank the failure story. If the pricing is outcome-based, the answer must specify the eval that makes the outcome measurable, treating evals as revenue infrastructure. The staffing plan must assign explicit operational ownership and an eval owner, defusing the orphan-agent mode. The two kill criteria must be *measured and specific* ("cost per resolved task exceeds X for two quarters," not "if it's not working") — a business case that cannot name the conditions for stopping has been sold, not evaluated. The Jevons stress-test must acknowledge that success can raise total spend.
 

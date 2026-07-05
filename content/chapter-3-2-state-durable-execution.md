@@ -12,6 +12,8 @@ The customer received the same "please upload your tax documents" email they had
 
 Nobody had asked the question that separates a demo from a system: *where does this workflow's state live when the process running it dies?*
 
+**A long-running workflow whose state lives only in process memory is a demo that works until the first restart, and the restart is not a question of if but when; durable execution means you can name the exact state of every task and resume it correctly after the process dies mid-step.**
+
 ## 2. The mental model
 
 ### 2.1 Durable execution: the engine keeps the state
@@ -90,6 +92,29 @@ The MCP servers from Ch. 2.1 are the workflow's effect surface — the tools who
 ## 6. Design exercise
 
 Model a *loan-origination agent* as an explicit, durable state machine. The process has two human gates (an initial eligibility review and a final underwriting sign-off) and one five-business-day external wait (a third-party income verification). Specify (a) the enumerable set of states and the legal transitions between them; (b) the checkpoint contents at each state — what must be persisted so the workflow can be rebuilt after a crash; (c) the resume behavior for a pod restart mid-verification, including which values are memoized and how the agent's working context is reconstructed; (d) the suspension design for the five-day wait — the signal that resumes it, the timer that bounds it, and the escalation when the timer fires unanswered; and (e) the v1→v2 migration story for a case already in progress when you change the underwriting logic.
+
+*Options:* Memoize result, restore on replay · Re-issue the call on replay · Suspend, release compute, register signal + timer · Hold the process open · Escalate to human / fallback path · Discard the workflow · Pin to v1 or define explicit v1→v2 migration · Redeploy and rely on the new logic
+
+*Check:* Each item below tests one structural correctness decision the chapter makes explicit — match it to the right option.
+
+| Item | Answer | Why |
+|---|---|---|
+| (c) The income-verification API response is a nondeterministic value. On a pod-restart resume, the workflow should… | Memoize result, restore on replay | The chapter requires every nondeterministic value to be recorded on first execution and restored on replay; re-issuing it can produce a divergent state and would re-fire the verification request — reproducing the failure story. |
+| (d) While the workflow waits five business days for the income report, the process should… | Suspend, release compute, register signal + timer | Durable suspension parks the workflow, releases compute, and registers both the wakeup signal and the bounding timer; holding the process open for five days is both wasteful and fragile. |
+| (d) When the five-day timer fires with no signal received, the workflow should… | Escalate to human / fallback path | The chapter explicitly names escalation as the designed outcome when a bounding timer fires unanswered; discarding the workflow loses work and has no recovery path. |
+| (e) When a code change ships while loan-origination cases are already in flight, the correct approach is… | Pin to v1 or define explicit v1→v2 migration | Running in-flight v1 workflows against v2 logic silently corrupts in-progress state; the migration story must name what happens to each case — pin it or migrate it explicitly. |
+
+*Sample solution:* A complete design covers all five parts. Below is one defensible answer that satisfies the Review standard.
+
+- **(a) States and transitions.** The state machine has seven enumerable states: `application_received` → `eligibility_review_pending` (first human gate; workflow suspends) → `income_verification_requested` (external wait) → `income_verification_received` or `income_verification_timed_out` (either signal or timer escalation) → `underwriting_review_pending` (second human gate; workflow suspends) → `decision_issued` (approved or declined). Legal transitions are defined in code; the model cannot introduce a new state at runtime.
+
+- **(b) Checkpoint contents.** Each state persists: the workflow instance ID and current state name; all inputs and derived facts collected so far (applicant ID, requested amount, eligibility decision with timestamp, the income-verification reference ID and its memoized response once received, underwriting decision once issued); the version tag the workflow started under; and the timer registration with its deadline for any suspended state. This is the minimum needed to reconstruct working context after a crash.
+
+- **(c) Resume after a pod restart mid-verification.** On recovery the engine replays the decision log up to the last checkpoint. The income-verification API call is nondeterministic, so its response is memoized on first execution and restored from the log — never re-issued. The agent's working context is reconstructed by passing the checkpointed summary (applicant facts, verification reference ID, elapsed time, prior decisions) as a prompt prefix; the resuming model instance has no inherent memory of the previous 61 hours and must receive this summary explicitly.
+
+- **(d) Suspension design for the five-day wait.** On entering `income_verification_requested` the workflow suspends, releases its compute, and registers two things: (1) a **signal** — `income_report_received` — that resumes it when the third-party provider posts back; (2) a **timer** — five business days computed in a DST-safe calendar — that fires if no signal arrives. When the timer fires unanswered, the workflow transitions to `income_verification_timed_out` and escalates: it notifies the assigned loan officer, parks in a manual-intervention state, and waits for an operator decision (extend, proceed on partial data, or decline). Waiting costs only storage, not a held process.
+
+- **(e) v1→v2 migration.** When new underwriting logic ships, any workflow already past `income_verification_received` is pinned to v1 until it reaches `decision_issued` — the engine records the version tag at start and routes replay through the correct logic branch. Any workflow not yet past the underwriting gate receives an explicit state migration: the v1 `underwriting_review_pending` record is mapped to the v2 equivalent with a migration function that backfills any new required fields with safe defaults, and the version tag is updated atomically. A redeploy without this migration would silently run in-flight v1 state through v2 assumptions, corrupting every case in progress.
 
 **Review standard.** A strong answer treats the state machine as the deterministic skeleton and the model's reasoning as contained within states, never as the keeper of progress. The five-day wait must suspend and release compute, not hold a process. Every nondeterministic step inside the replayable path must be explicitly memoized. And the migration story must actually name what happens to an in-flight case — pinned to v1 or migrated to v2 — rather than assuming a redeploy is harmless. If your design would re-send the income-verification request after a restart, it has reproduced the failure story.
 

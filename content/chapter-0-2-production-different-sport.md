@@ -14,6 +14,8 @@ The team's first instinct was to fix the prompt. They spent two weeks raising pe
 
 Nobody asked the question that governs every long-running agent: **how many steps must succeed in a row before anything catches a mistake, and what is that product?** This chapter exists so that number is the first thing you compute, not the last thing you discover.
 
+**Reliability multiplies rather than adds, so the governing design variable of any long-running agent is not per-step accuracy but the number of steps that must succeed in a row before a checkpoint resets the compounding error to zero.**
+
 ---
 
 ## 2. The mental model
@@ -128,6 +130,20 @@ You are handed a 12-step agent with a measured, honest **97% per-step reliabilit
 1. Compute end-to-end success as-is. (0.97¹² — do the arithmetic and state it.)
 2. Redesign the flow with **two deterministic checkpoints** that partition the 12 steps into three segments, plus **one human gate** before the single irreversible effect. Assume each checkpoint catches and repairs 75% of the errors reaching it before they propagate. Estimate the effective end-to-end reliability of the redesigned flow, stating every assumption you make about error independence and repair success.
 3. State the **cost of the added latency**: the two checkpoints add validator compute and the human gate adds wall-clock wait. Quantify both in plausible magnitudes and say what product value that latency buys.
+
+*Options:* ~69% · ~71% · ~64% · ~54% · ~78%
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| As-is end-to-end reliability (0.97¹²) | ~69% | 0.97¹² ≈ 0.694, so roughly 69% of tasks complete correctly end-to-end — already below two-thirds even at a strong per-step rate, confirming the exponent is the governing lever. |
+
+*Sample solution:* Work through each part using the chapter's compounding-error framework.
+
+- **Part 1 — As-is:** 0.97¹² ≈ 0.694, so approximately **69%** end-to-end success. Nearly one in three tasks completes incorrectly, all silently unless validators are present. This matches the table in §2.1 (99% per-step at 12 steps ≈ 89%; 95% at 10 steps ≈ 60% — 97% at 12 sits in between, closer to the 95-row).
+- **Part 2 — Redesigned flow:** Partition into three segments of four steps each (4 + 4 + 4). Each four-step segment succeeds with 0.97⁴ ≈ **0.885**. Each checkpoint catches and repairs 75% of errors before propagation, so the effective failure rate reaching the next segment is 0.115 × 0.25 = 0.0288, meaning effective per-segment pass ≈ **0.971**. Compounding three such segments: 0.971³ ≈ **0.915**. The human gate before the irreversible step adds no reliability penalty to the arithmetic — it converts a potential silent wrong into a supervised one, eliminating that class of tail risk entirely. Key assumptions: (a) errors within a segment are independent; (b) the validator correctly identifies 75% of failures and its repairs do not introduce new errors; (c) the three segments fail independently — if a bad retrieval in segment one poisons segments two and three (correlated failure), the 75%-repair figure is optimistic and the redesign's gains shrink. A single corrupted shared context can make all three segment checks moot.
+- **Part 3 — Latency cost:** Two deterministic validators add on the order of **50–200 ms each** (a schema check, a business-rule assertion, a lookup against a reference table) — negligible on a task that already spans multiple LLM calls. The human gate is categorically different: it adds **minutes to hours** of wall-clock wait. What that wait purchases is the elimination of the silent-wrong-completion failure mode on the one action that is irreversible and costly to unwind — a credit post, a payment, an external notification. If the human-remediation cost of a silent wrong completion runs to 15–30 minutes per incident (§3), and the task volume is thousands per month, the gate's latency is a direct buydown of that remediation tail. The tradeoff is: validator latency is cheap and should be applied freely; human-gate latency is non-trivial and should be applied precisely at the irreversible seam — one gate, at the right place, not gates everywhere.
 
 *Review standard:* your as-is number must be materially below your redesigned number (if it isn't, your checkpoints are misplaced); you must name at least one assumption that, if wrong, would collapse the redesign's gains (e.g., correlated errors that no single checkpoint catches); and your latency cost must be stated as a concrete tradeoff, not waved away.
 

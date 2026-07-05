@@ -12,6 +12,8 @@ The deeper problem was that nobody had chosen the topology deliberately. "Fan ou
 
 Nobody had asked the question that governs multi-agent design: *what is this topology's cost surface, its failure surface, and its aggregation semantics — and does the task's structure actually justify the parallelism we're paying for?*
 
+**Parallelism is a cost-and-failure surface you buy, not a free speedup, so a topology is only justified when the task's structure demands it — and it must ship with an explicit decomposition-and-aggregation contract: what each worker sees, how results compress, how conflicts resolve, and what happens when a worker fails or times out.**
+
 ## 2. The mental model
 
 ### 2.1 The topology catalog is a menu of trade-offs
@@ -92,6 +94,21 @@ Anthropic's *Building Effective Agents* is the canonical catalog for these patte
 ## 6. Design exercise
 
 Pick and justify a topology for a quarterly-close variance analysis across 14 subsidiaries, where each subsidiary's ledger is independent but the final report must reconcile them against a group consolidation. Specify: the topology and why the task's structure selects it; what context each worker sees (per-subsidiary isolation vs. shared group data, and whether the group consolidation is read once and shared); the aggregation rules that merge 14 variance analyses into one report, including how conflicts or double-counts resolve; and the failure policy when 2 of the 14 workers fail — ship 12, retry 2, or block.
+
+*Options:* Chaining · Routing · Parallel sectioning · Parallel voting · Orchestrator–workers · Evaluator–optimizer · Hierarchical delegation
+
+*Check:*
+
+| Item | Answer | Why |
+|---|---|---|
+| Topology for 14 independent subsidiary ledgers with shared group consolidation | Parallel sectioning | The 14 subsidiary ledgers are genuinely independent sub-tasks whose results must be merged, which is exactly the structure parallel sectioning is justified by — each worker handles one ledger slice while the group consolidation is read once into a shared cache. |
+
+*Sample solution:* A complete design addresses topology selection, context strategy, aggregation rules, and failure policy using the chapter's decomposition-and-aggregation contract.
+
+- **Topology — parallel sectioning.** The task structure demands it: the 14 subsidiary ledgers are independent (no subsidiary's variance depends on another's computation), the work can be divided cleanly by subsidiary, and a final reconciliation merge is required. This meets the two conditions that justify parallel sectioning — genuine sub-task independence and a defined aggregation step. Orchestrator–workers would add dynamic decomposition overhead that the fixed 14-subsidiary structure does not need. Chaining would serialize needlessly. Voting would incur 14× duplicate cost with no reliability benefit because ledger variance is deterministic given the inputs.
+- **Context strategy — isolation plus one shared read.** Each worker receives only its own subsidiary's ledger (isolation); no worker is handed all 14 ledgers. The group consolidation target is read once by the orchestrator and passed as a shared reference to all 14 workers — it is not re-fetched per worker. Token cost is stated as: 14 workers × (per-subsidiary ledger tokens + shared consolidation reference tokens) + orchestrator overhead + aggregator context. This is compared against a single-pass baseline (one call with all 14 ledgers) to confirm parallelism is justified; if the single pass fits in context and latency is acceptable, the chain or single-pass is cheaper.
+- **Aggregation rules.** Workers return compressed variance findings — subsidiary name, line items with variance, direction, magnitude — not raw ledger dumps. The aggregator applies explicit rules: (1) sum group-level totals from subsidiary line items; (2) flag any double-count where an intercompany elimination appears in two subsidiaries and collapse it to one net figure; (3) resolve conflicts by source-of-record — the subsidiary's signed ledger overrides any derived estimate; (4) tag any item where two workers' figures differ by more than a rounding threshold as "requires human review" rather than silently picking one. The aggregation stage has its own eval on synthetic test cases with known intercompany eliminations and rounding conflicts.
+- **Failure policy — retry 2, then ship 12 with explicit gap notice.** If 2 of 14 workers fail or time out: first, retry both once with a fresh context (transient LLM errors are common). If retries also fail, ship the 12 completed analyses with the report explicitly marked as "2 subsidiaries missing — do not use for sign-off." Block is not the right policy because 12 of 14 completed is actionable and withholding it delays the whole close; "ship 12 silently" is wrong because it hides the gap from the reader. The partial-result policy is decided before launch, not during the incident.
 
 *Review standard:* the design passes if the total token cost is stated as workers × context and justified against a single-pass baseline; if no worker is handed data it does not need; if the aggregation stage has explicit conflict/double-count rules and its own eval rather than a trusting merge; and if the 2-of-14-failure case has a defined, defensible policy (not "it'll probably be fine"). A design that fans out because parallel "feels faster" without a token-budget justification fails.
 

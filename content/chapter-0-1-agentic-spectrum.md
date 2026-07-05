@@ -150,6 +150,26 @@ Profile each of the five task briefs below along the five dimensions (§2.3), pl
 4. **Ad-hoc data Q&A** over a governed warehouse for business users ("why did EMEA churn spike in March?")
 5. **Monthly board pack assembly** from finance systems, prior decks, and KPI narratives
 
+*Options:* Deterministic pipeline · Single LLM call · Prompt chain · Workflow with routing/branching · Constrained agent · Autonomous agent
+
+*Check:* place each brief's *bulk* volume at the cheapest architecture that could possibly work (residual autonomy is handled in the sample solution below).
+
+| Item | Answer | Why |
+|---|---|---|
+| Invoice matching | Deterministic pipeline | The 83% exact/near-exact matches are enumerable and cheaply verifiable against POs; a lookup with fuzzy matching settles them, and only the residual earns an agent. |
+| Incident triage | Workflow with routing/branching | The path is predictable — classify severity, then dispatch to a correlate-and-draft specialist — and the output is a reviewed draft, so code can own control flow. |
+| Contract redlining | Constrained agent | Legal judgment is not enumerable and quality is hard to verify, but attorneys consume the output, so the agent proposes redlines and a human disposes. |
+| Ad-hoc data Q&A | Constrained agent | Questions are long-tail and unstructured, yet answers are read-only and reconcilable against the governed warehouse — verifiability makes bounded tool use safe. |
+| Monthly board pack | Prompt chain | A fixed monthly sequence — pull figures, compute deltas, draft narratives, format — where each step feeds the next; no run-time control-flow decisions are needed. |
+
+*Sample solution:* Once each brief is placed, the open half is *what funds any autonomy right of "workflow," and the one action class you gate behind a human.*
+
+- **Invoice matching** — Verification: reconciliation against purchase orders plus a precision floor on the residual agent (e.g. 99%+ over a rolling window). Gated action class: **payment execution** — the agent may propose a resolution, never release funds.
+- **Incident triage** — Verification: the drafted severity is checked against alert-derived signals, and post-incident review scores triage accuracy. Gated action class: **paging humans / declaring a Sev-1** — the draft is advisory until a responder confirms.
+- **Contract redlining** — Verification: each redline cites the playbook clause it enforces, so an attorney can audit provenance clause-by-clause. Gated action class: **anything that reaches the counterparty** — no redline leaves for signature without attorney sign-off.
+- **Ad-hoc data Q&A** — Verification: generated SQL runs read-only against a governed schema and figures reconcile to the warehouse's own totals. Gated action class: **any write or export of PII** — the tool surface is query-only by construction.
+- **Monthly board pack** — Verification: KPI figures are diffed against the source-of-truth finance systems and prior-period decks before assembly. Gated action class: **distribution of the pack** — the draft is assembled autonomously but a finance owner releases it.
+
 *Review standard:* your placements must disagree across the five (they genuinely differ), and at least one must terminate in "mostly deterministic, agent only on the residual."
 
 ## 7. Self-test — judge each claim, justify in one sentence

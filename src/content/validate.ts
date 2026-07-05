@@ -49,6 +49,21 @@ function main(): void {
     if (!ch.exercise) {
       errors.push(`${ch.id}: §6 design exercise is missing.`);
     }
+    if (ch.exercise && !ch.exercise.check && !ch.exercise.sampleSolution) {
+      errors.push(`${ch.id}: §6 design exercise has neither a Check nor a Sample solution.`);
+    }
+    const check = ch.exercise?.check;
+    if (check) {
+      if (check.items.length === 0) {
+        errors.push(`${ch.id}: §6 check block has no items.`);
+      }
+      const stray = check.items.filter((it) => !check.options.includes(it.correct));
+      if (stray.length > 0) {
+        errors.push(
+          `${ch.id}: §6 check answer(s) not in Options (${stray.map((it) => it.index).join(", ")}).`,
+        );
+      }
+    }
     if (!ch.doctrineCheck) {
       errors.push(`${ch.id}: no "Doctrine check" blockquote found (E9).`);
     }

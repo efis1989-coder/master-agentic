@@ -17,6 +17,20 @@ export function stripEmphasis(text: string): string {
   return t;
 }
 
+/**
+ * Strip inline markdown emphasis markers (`**bold**`, `*italic*`) from anywhere
+ * in a string, keeping the emphasized text. Unlike `stripEmphasis` (which only
+ * peels a single wrapping pair), this cleans mid-string emphasis — used for
+ * doctrine / doctrine-check text that is rendered as plain text, so residual
+ * markers would otherwise display literally.
+ */
+export function stripInlineEmphasis(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .trim();
+}
+
 /** Strip wrapping straight or curly double quotes. */
 export function stripQuotes(text: string): string {
   const t = text.trim();

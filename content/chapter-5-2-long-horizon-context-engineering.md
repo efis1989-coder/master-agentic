@@ -12,6 +12,8 @@ On turn 140, the agent proactively surfaced a "critical finding": a detailed ris
 
 The agent had not malfunctioned in any single step. Every action was locally reasonable given its context. The problem was the context itself: nobody had designed what should persist, what should decay, and what should be able to *override* what. The team had treated the context window as a passive log that fills up, rather than as **an actively curated working set with a maintenance regime.** The question they had never asked was: *when the user changes their mind on turn 95, what in the system guarantees the agent on turn 140 knows the turn-30 goal is dead?*
 
+**Over a long horizon the context window is not a passive log that fills up but an actively curated working set, so it needs a maintenance regime that decides what persists, what decays, and what can override what — because without an explicit supersession rule a stale but emphatic instruction will outlive the quiet correction that killed it.**
+
 ## 2. The mental model
 
 ### 2.1 Context is a managed asset, not a transcript
@@ -98,7 +100,57 @@ MCP is relevant here as the fetch mechanism of §2.2: tool servers that expose e
 
 Design the complete context-maintenance regime for a two-week M&A due-diligence agent operating in ambient mode (waking on data-room uploads and team emails). Specify: the compaction cadence and strategy (when, and what summarization approach); the protected-fact register (what specifically is forbidden from compaction — name the categories); the goal re-confirmation triggers (what events force the agent to re-surface and confirm its understanding of the current objective); the plan staleness checks (what world-state changes invalidate a standing plan); and the canary-probe design (what fixed questions you seed and how you use their decay to measure coherence). Then trace the failure story through your design: show exactly which mechanism would have caught the turn-95 supersession before turn 140.
 
-**Review standard.** A strong answer's protected-fact register explicitly includes the deal perimeter (what is in and out of the transaction) as a protected, supersedable fact — the exact category the failure story lost. The goal re-confirmation triggers must fire on *structural* events (deal restructuring, scope change), not merely on a timer. The plan staleness check must be tied to world-state, not to elapsed time alone. The canary probes must include at least one question whose correct answer *changes* when the deal changes, so that decay and staleness are distinguishable. An answer that only summarizes turns more aggressively has missed that the problem was precedence and protection, not compression ratio.
+*Options:* Admit · Persist · Compact · Fetch · Goal register · Protected-fact register · Decision journal · Structural event · Timer · Elapsed time · World-state change · Deal perimeter · Intermediate reasoning · Completed sub-task results
+
+*Check:* Match each design-decision item to the single best answer from the options above.
+
+| Item | Answer | Why |
+|---|---|---|
+| The context operation that is highest-risk because it is lossy by design | Compact | Compaction deliberately discards information; a bad pass drops load-bearing constraints, as the failure story shows |
+| The designated set of facts that compaction is forbidden to touch | Protected-fact register | The chapter explicitly defines this as the strongest defense: facts carried verbatim regardless of how the rest of the context is compressed |
+| The category of facts that must include the deal perimeter (what is in and out of the transaction) | Protected-fact register | The review standard names the deal perimeter as the exact category the failure story lost; it must be protected, not merely admitted |
+| The append-only record that lets you reconstruct which commitment drove a long-horizon action | Decision journal | Decision journals are append-only by construction and cannot be summarized away, making them the primary debugging trace |
+| The mechanism that maintains the current standing objective, named and checked separately from the conversation | Goal register | The chapter defines the goal register as the named, separately maintained artifact that gives an instruction formal retirement semantics |
+| What context operation keeps the resident window small by pulling information on demand from external stores | Fetch | Just-in-time retrieval treats external stores as the memory of record and the window as a cache, the role MCP tool servers play |
+| What type of event must trigger goal re-confirmation — not a timer, but a change in deal conditions | Structural event | The review standard explicitly requires triggers to fire on structural events (deal restructuring, scope change), not merely on a timer |
+| What the plan staleness check must be tied to (not elapsed time alone) | World-state change | The review standard states the staleness check must be tied to world-state; a time-based check would not have caught the EU subsidiary carve-out |
+
+*Sample solution:* A complete regime for this agent addresses each of the five specification areas and then traces the failure story precisely.
+
+**Compaction cadence and strategy.** Compact on a hybrid trigger: (a) every 40–50 turns of conversational accumulation, and (b) immediately after any structurally significant event (new data-room upload with deal-level implications, received email flagged as scope-change). Summarization approach: hierarchical roll-up — individual tool results and intermediate reasoning steps are summarized into a structured note per completed sub-task; sub-task notes are themselves eligible for later roll-up into a session summary; the compaction pass is forbidden from touching anything in the protected-fact register or the decision journal.
+
+**Protected-fact register (categories forbidden from compaction).**
+- Deal perimeter: the explicit list of entities, subsidiaries, and assets that are in scope and those explicitly carved out, with the turn and event that established each status change.
+- Hard constraints: regulatory, legal, and contractual constraints that bound any recommendation (e.g., jurisdiction rules, NDA scope).
+- Active directive: the user's most recently confirmed standing instruction, flagged with the turn it was issued and the turn (if any) that superseded a prior directive.
+- Supersession log: a paired record of each retired directive — what it was, when it was issued, when it was retired, and by what event — so that retirement is explicit and searchable, not merely overwritten.
+- Key commitments: any externally communicated position or recommendation the agent has produced (relevant for consistency in a multi-day live transaction).
+
+**Goal re-confirmation triggers.** Fire on structural events, not timers:
+1. Any incoming email or data-room item that the agent classifies as potentially altering deal scope, deal parties, or deal structure.
+2. Any detected contradiction between a new input and the active directive in the protected-fact register.
+3. At session wake after any idle period longer than four hours (ambient idle-state hygiene).
+4. Any time the agent is about to produce a deliverable of record (memo, summary, risk assessment) — confirm the current objective before committing output.
+At each trigger the agent surfaces: "My current standing objective is [X]. The deal perimeter is currently [Y entities in scope / Z carved out]. Please confirm or correct before I proceed."
+
+**Plan staleness checks.** Plans are stored as versioned artifacts, each carrying an explicit assumption set: the deal perimeter, the key risks under investigation, and the data-room state (version hash or last-updated timestamp) at plan formation. On every wake, before acting, the agent runs a staleness check: compare the plan's recorded deal perimeter against the current protected-fact register's deal perimeter. If they differ, the plan is automatically invalidated and re-formation is triggered. A changed data-room state (new upload) triggers a targeted check: does the new document affect any assumption the plan relies on?
+
+**Canary-probe design.** Seed four fixed questions at session start:
+1. "Is [EU subsidiary] currently in scope for the diligence?" — answer changes when deal restructures; tracks both rot and staleness.
+2. "What is the current standing priority directive?" — answer should match the active directive in the protected-fact register.
+3. "Name two hard constraints that bound any tax recommendation." — answer is stable; pure rot indicator.
+4. "What is the most recent structural event that changed deal scope?" — answer changes on restructuring; combined staleness and supersession tracker.
+Re-ask all four probes every 25 turns. Plot accuracy vs. turn count. When canary 1 or 4 answer incorrectly relative to the protected-fact register, the system raises a coherence alert before the next action is taken.
+
+**Tracing the failure story through this design.**
+- Turn 30: user issues emphatic EU-subsidiary directive. The active directive slot in the protected-fact register is written: `"Prioritize EU subsidiary diligence — [turn 30]"`. Canary 1 answer is set to `"Yes, in scope"`.
+- Turn 95: user mentions the EU subsidiary is carved out. This input is classified by the structural-event classifier as a scope change. Goal re-confirmation trigger fires immediately. The agent surfaces: "You've indicated the EU subsidiary is carved out. I am retiring the turn-30 directive and updating the deal perimeter. Please confirm." Upon confirmation, the protected-fact register is updated: deal perimeter records the subsidiary as out-of-scope; the supersession log records that the turn-30 directive is retired by turn-95 event. Canary 1 answer is updated to `"No, carved out as of turn 95"`.
+- Compaction passes between turn 95 and turn 140 run against the updated register and cannot touch the supersession log or deal perimeter.
+- Turn 140: the agent, consulting the goal register, sees the active directive no longer references the EU subsidiary. The deal perimeter confirms it is out of scope. The canary probes (re-asked at turn 100 and turn 125) are returning correct answers. The agent does not produce the EU-subsidiary risk memo because the standing objective no longer calls for it.
+
+The mechanism that catches the supersession is the combination of the structural-event classifier triggering goal re-confirmation at turn 95 and the protected-fact register's deal-perimeter update with explicit retirement semantics. The failure story's compaction amnesia cannot occur because the supersession lives in the protected register, not the compactible stream.
+
+*Review standard.* A strong answer's protected-fact register explicitly includes the deal perimeter (what is in and out of the transaction) as a protected, supersedable fact — the exact category the failure story lost. The goal re-confirmation triggers must fire on *structural* events (deal restructuring, scope change), not merely on a timer. The plan staleness check must be tied to world-state, not to elapsed time alone. The canary probes must include at least one question whose correct answer *changes* when the deal changes, so that decay and staleness are distinguishable. An answer that only summarizes turns more aggressively has missed that the problem was precedence and protection, not compression ratio.
 
 ## 7. Self-test
 
