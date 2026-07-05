@@ -60,6 +60,26 @@ function Row({ chapter }: { chapter: Chapter }): React.JSX.Element {
           {chapter.doctrineCheck}
         </blockquote>
       )}
+      {chapter.glossary.length > 0 && (
+        <details className={styles.glossary}>
+          <summary className={styles.glossarySummary}>
+            Key terms ({chapter.glossary.length})
+          </summary>
+          <ul className={styles.glossaryList}>
+            {chapter.glossary.map((term) => (
+              <li key={term.term}>
+                <Link
+                  to={`/read/${chapter.id}`}
+                  state={{ scrollToSection: term.sectionN }}
+                  className={styles.glossaryLink}
+                >
+                  {term.term}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </li>
   );
 }

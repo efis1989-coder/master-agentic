@@ -8,9 +8,9 @@
 
 A payments company ran a reconciliation agent whose job ended in a single structured handoff: emit a JSON object describing each matched transaction, which a deterministic ledger-posting service consumed and executed. It had run cleanly for months. Then a product manager, tidying the system prompt, changed one instruction from "return the amount as a number" to "return the amount, formatted for readability." Harmless-sounding. It shipped Friday afternoon with no diff review, no regression suite, and no version bump.
 
-The model started emitting `"amount": "1,240.00"` — a string, with a thousands separator — instead of `1240.0`. The ledger service's parser did what strict parsers do: it rejected the malformed field and fell through to a lenient path that stripped non-numeric characters, turning `"1,240.00"` into `124000`. Every reconciled amount was now inflated by a factor of 100. The postings were internally consistent and passed the service's own checks, so nothing alarmed. For **six days**, across roughly **4,200** transactions, the ledger drifted. The discrepancy surfaced only when a finance analyst noticed a subsidiary's cash position was off by two orders of magnitude.
+The model started emitting `"amount": "1,240.00"` — a string, with a thousands separator — instead of `1240.0`. The ledger service's parser did what strict parsers do: it rejected the malformed field and fell through to a lenient path that stripped non-numeric characters, turning `"1,240.00"` into `124000`. Every reconciled amount was now inflated by a factor of 100. The postings were internally consistent and passed the service's own checks, so nothing alarmed. For *six days*, across roughly **4,200** transactions, the ledger drifted. The discrepancy surfaced only when a finance analyst noticed a subsidiary's cash position was off by two orders of magnitude.
 
-Root cause was not the model. The model followed the new instruction faithfully. The failure was that a **production interface contract had been changed like a copy edit.** There was no schema pinning the output type, no regression test asserting `amount` parses as a number, no diff surfaced to the engineer who owned the consumer, and no coupled version linking prompt-vN to a validation layer. A one-word prompt change was, in effect, an unreviewed breaking change to a financial API — and it was treated as prose.
+Root cause was not the model. The model followed the new instruction faithfully. The failure was that a production **interface contract** had been changed like a copy edit. There was no schema pinning the output type, no regression test asserting `amount` parses as a number, no diff surfaced to the engineer who owned the consumer, and no coupled version linking prompt-vN to a validation layer. A one-word prompt change was, in effect, an unreviewed breaking change to a financial API — and it was treated as prose.
 
 The team never asked the question that governs every production prompt: **what downstream contract does this text guarantee, and what enforces the guarantee when the words change?** This chapter treats the prompt as what it is — a versioned, tested interface — not as writing.
 
@@ -31,7 +31,7 @@ A system prompt is not documentation for the model; it is the *specification of 
 
 ### 2.2 System-prompt architecture and the instruction hierarchy
 
-A production system prompt is structured, and the structure follows an *instruction hierarchy* — the precedence order in which conflicting directives are meant to resolve. A durable ordering:
+A production system prompt is structured, and the structure follows an **instruction hierarchy** — the precedence order in which conflicting directives are meant to resolve. A durable ordering:
 
 1. **Role and objective** — what the agent is and the single outcome it optimizes.
 2. **Capabilities and tools** — what it can do (and, by omission, cannot).
@@ -116,7 +116,7 @@ On Claude's stack (verify specifics at [docs.claude.com](https://docs.claude.com
 
 ## 6. Design exercise
 
-Write the **output-contract section** of a system prompt for an agent whose JSON output feeds a deterministic **ledger-posting engine** (the payments case, done right this time).
+Write the *output-contract section* of a system prompt for an agent whose JSON output feeds a deterministic *ledger-posting engine* (the payments case, done right this time).
 
 1. Specify the contract: every field, its type, its allowed range or enum, required vs optional, and the exact serialization of monetary amounts (settle the number-vs-string question and defend it).
 2. Enumerate **every way the contract can be violated** — wrong type, out-of-range, extra field, missing field, ambiguous amount, injected content in a free-text field — and for each, name the **validation-layer check** that catches it before anything posts.

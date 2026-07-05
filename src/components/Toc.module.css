@@ -67,12 +67,37 @@
 }
 
 .partName {
+  display: flex;
+  align-items: center;
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-muted);
-  padding: 0 var(--space-2);
+  padding: 0.15rem var(--space-2);
   margin-bottom: var(--space-1);
+  cursor: pointer;
+  border-radius: var(--radius);
+  list-style: none;
+}
+
+.partName::-webkit-details-marker {
+  display: none;
+}
+
+.partName::before {
+  content: "▾";
+  display: inline-block;
+  margin-right: 0.4em;
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.part:not([open]) .partName::before {
+  transform: rotate(-90deg);
+}
+
+.partName:hover {
+  background: var(--color-surface-2);
 }
 
 .chapterLink {
@@ -106,4 +131,23 @@
 
 .chapterLinkActive .num {
   color: var(--color-accent);
+}
+
+.progressDotRead,
+.progressDotReading {
+  margin-left: auto;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.progressDotRead {
+  background: var(--color-accent);
+}
+
+.progressDotReading {
+  background: transparent;
+  border: 1.5px solid var(--color-muted);
 }

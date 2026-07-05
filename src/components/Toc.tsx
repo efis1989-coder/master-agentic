@@ -1,6 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { NavLink } from "react-router-dom";
 import { course } from "../content";
+import { getAllProgress } from "../db/progressRepo";
 import { countDue } from "../db/srsRepo";
 import { BackupControls } from "../features/backup/BackupControls";
 import { ThemeToggle } from "../features/theme/ThemeToggle";
@@ -15,6 +16,8 @@ export function Toc({ onNavigate }: { onNavigate?: () => void }): React.JSX.Elem
   const link = (isActive: boolean, base: string, active: string) =>
     isActive ? `${base} ${active}` : base;
   const dueCount = useLiveQuery(() => countDue(), []) ?? 0;
+  const progress = useLiveQuery(() => getAllProgress(), []) ?? [];
+  const progressById = new Map(progress.map((p) => [p.id, p.status]));
 
   return (
     <nav className={styles.toc} aria-label="Course contents">
@@ -97,24 +100,35 @@ export function Toc({ onNavigate }: { onNavigate?: () => void }): React.JSX.Elem
       </div>
 
       {course.parts.map((part) => (
-        <div key={part.part} className={styles.part}>
-          <div className={styles.partName}>
+        <details key={part.part} className={styles.part} open>
+          <summary className={styles.partName}>
             Part {part.part} · {part.name}
-          </div>
-          {part.chapters.map((ch) => (
-            <NavLink
-              key={ch.id}
-              to={`/read/${ch.id}`}
-              onClick={onNavigate}
-              className={({ isActive }) =>
-                link(isActive, styles.chapterLink, styles.chapterLinkActive)
-              }
-            >
-              <span className={styles.num}>{ch.number}</span>
-              <span>{ch.title}</span>
-            </NavLink>
-          ))}
-        </div>
+          </summary>
+          {part.chapters.map((ch) => {
+            const status = progressById.get(ch.id);
+            return (
+              <NavLink
+                key={ch.id}
+                to={`/read/${ch.id}`}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  link(isActive, styles.chapterLink, styles.chapterLinkActive)
+                }
+              >
+                <span className={styles.num}>{ch.number}</span>
+                <span>{ch.title}</span>
+                {status && (
+                  <span
+                    className={
+                      status === "read" ? styles.progressDotRead : styles.progressDotReading
+                    }
+                    aria-label={status === "read" ? "Read" : "In progress"}
+                  />
+                )}
+              </NavLink>
+            );
+          })}
+        </details>
       ))}
 
       <ThemeToggle />

@@ -42,6 +42,12 @@ export interface ChapterSection {
   markdown: string;
 }
 
+/** A key term introduced inline in chapter prose, linking back to its source section. */
+export interface GlossaryTerm {
+  term: string;
+  sectionN: number;
+}
+
 /** E1 — the §1 production-failure cold open. */
 export interface IncidentHook {
   markdown: string;
@@ -70,6 +76,7 @@ export interface Chapter {
   selfTest: SelfTestClaim[]; // §7
   srsCards: SrsPrompt[]; // §8
   exercise: DesignExercise | null; // §6
+  glossary: GlossaryTerm[]; // key terms introduced inline, deduped globally in buildCourse
 }
 
 export interface ExamOption {

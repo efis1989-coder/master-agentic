@@ -37,7 +37,7 @@ Two pricing facts every architect keeps on a napkin (values illustrative — *ve
 - **Input is cheaper than output**, often by ~5×. If input is ~$3 per million tokens, output is often ~$15 per million. A design that trims 500 output tokens saves more than one that trims 500 input tokens.
 - **Cached input is dramatically cheaper than fresh input** — commonly ~10× less. This single fact reshapes prompt architecture, because it means *where* you put a token matters as much as *whether* you include it.
 
-**Prompt caching** lets the provider reuse the KV cache for a stable prefix across requests instead of re-running prefill. The mechanics are unforgiving in a way you must design for: caching keys on an *exact prefix match*, so one changed byte anywhere in the prefix invalidates the cache from that byte onward. The design rule that falls out is **cache-aware layout: stable content first, volatile content last.**
+**Prompt caching** lets the provider reuse the KV cache for a stable prefix across requests instead of re-running prefill. The mechanics are unforgiving in a way you must design for: caching keys on an *exact prefix match*, so one changed byte anywhere in the prefix invalidates the cache from that byte onward. The design rule that falls out is **cache-aware layout**: stable content first, volatile content last.
 
 ```mermaid
 graph LR
@@ -85,7 +85,7 @@ You should be able to estimate a workload's cost and latency before writing a li
 
 **Cache economics and prompt iteration are in tension.** Every edit to a cached prefix invalidates the cache and forces full prefill until it re-warms — so rapid prompt iteration and cache savings pull against each other. Mature teams pin and version the cached prefix (Ch. 4.6) and iterate in the volatile suffix, treating prefix changes as release events.
 
-**On-call reality.** The mechanics in this chapter fail quietly, not loudly. A cost regression shows up as a slow climb in the monthly bill, not an alert; a context-length quality cliff shows up as a rising rate of subtly wrong answers, not an exception; a cache-invalidating stray timestamp shows up as latency creep. The pager-worthy version of each is a threshold on a *trend* — cost-per-resolved-task, cache-hit ratio, and effective-context quality — because there is no stack trace to catch. Wire those three trends before launch and the mechanics stop being invisible.
+*On-call reality.* The mechanics in this chapter fail quietly, not loudly. A cost regression shows up as a slow climb in the monthly bill, not an alert; a context-length quality cliff shows up as a rising rate of subtly wrong answers, not an exception; a cache-invalidating stray timestamp shows up as latency creep. The pager-worthy version of each is a threshold on a *trend* — cost-per-resolved-task, cache-hit ratio, and effective-context quality — because there is no stack trace to catch. Wire those three trends before launch and the mechanics stop being invisible.
 
 > **Doctrine check.** The deterministic core here is the *token accounting*, not the model: dollars, latency, and cache behavior are exactly computable and testable even though the model's output is not. Your verification cost is the instrumentation to measure effective context, cache-hit ratio, and per-segment token spend — cheap to build, and the thing that tells you when a design has drifted. The design is *wrong* when you cannot state, for a representative task, its expected cost, its TTFT, and the context length past which your own eval shows quality falling. If those three numbers are unknown, the context window is being treated as free — and it never is.
 
@@ -112,7 +112,7 @@ Mapping this onto Claude's stack (mechanics move fast — verify against current
 
 ## 6. Design exercise
 
-Design the prompt architecture for a **support agent** workload: ~40 messages per session, a 3,000-token system prompt, 20 tool schemas (~5,000 tokens of definitions total), and per-turn user content averaging ~300 tokens.
+Design the prompt architecture for a *support agent* workload: ~40 messages per session, a 3,000-token system prompt, 20 tool schemas (~5,000 tokens of definitions total), and per-turn user content averaging ~300 tokens.
 
 1. Lay out the prompt for **maximum cache reuse** across the 40 turns: state exactly what goes in the stable (cached) zone, what goes in the volatile zone, and why. Note what single change would invalidate the cache.
 2. **Estimate monthly cost** at 10,000 sessions. State your illustrative input/output/cached-input prices (flag them as illustrative), your assumed output tokens per turn, and your assumed cache-hit ratio. Show the arithmetic.

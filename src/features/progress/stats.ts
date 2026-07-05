@@ -1,5 +1,5 @@
 import { DOMAIN_IDS, DOMAIN_NAMES, type DomainId, type ThemeTag } from "../../content";
-import { deriveThemes } from "../../content/parseUtils";
+import { titleNamesTheme } from "../../content/parseUtils";
 import type { ProgressRow } from "../../db/types";
 
 /**
@@ -30,7 +30,7 @@ const DOMAIN_THEME_FALLBACK: Partial<Record<DomainId, ThemeTag>> = {
 
 /** True when a chapter's title names the given spiral theme (reuses the shared patterns). */
 function titleHasTheme(title: string, theme: ThemeTag): boolean {
-  return deriveThemes(title, "").includes(theme);
+  return titleNamesTheme(title, theme);
 }
 
 export interface PartMeta {

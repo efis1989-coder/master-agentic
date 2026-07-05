@@ -10,7 +10,7 @@ The demo was flawless. A logistics startup had built a shipment-exception agent:
 
 Production told a different story within three weeks. The task was not six steps; once you counted retrieval, three tool calls, two reasoning hops, a classification, and the draft, it was closer to twenty discrete steps that each had to land. At a genuine 95% per-step success rate, end-to-end success is 0.95²⁰ ≈ **36%**. Nearly two of every three exceptions came out subtly wrong: a credit computed against the wrong SLA tier, a notification citing a delay that had already cleared, a ticket routed to a decommissioned queue. None of these threw an error. They completed — incorrectly — and a human found out only when a customer replied "this makes no sense."
 
-The team's first instinct was to fix the prompt. They spent two weeks raising per-step accuracy from ~95% to ~97%. Real improvement — and 0.97²⁰ ≈ **54%**, still a coin-flip product. The pilot was quietly shelved in week three, filed internally as "the model isn't good enough yet." The model was fine. The **architecture** asked a probabilistic component to survive twenty consecutive unaided steps, and no per-step number available on any frontier model in 2025 makes that arithmetic work.
+The team's first instinct was to fix the prompt. They spent two weeks raising per-step accuracy from ~95% to ~97%. Real improvement — and 0.97²⁰ ≈ **54%**, still a coin-flip product. The pilot was quietly shelved in week three, filed internally as "the model isn't good enough yet." The model was fine. The *architecture* asked a probabilistic component to survive twenty consecutive unaided steps, and no per-step number available on any frontier model in 2025 makes that arithmetic work.
 
 Nobody asked the question that governs every long-running agent: **how many steps must succeed in a row before anything catches a mistake, and what is that product?** This chapter exists so that number is the first thing you compute, not the last thing you discover.
 
@@ -20,7 +20,7 @@ Nobody asked the question that governs every long-running agent: **how many step
 
 ### 2.1 The compounding-error law
 
-Reliability does not add across steps; it multiplies. If a task requires *n* independent steps that each succeed with probability *p*, and any single failure ruins the outcome, end-to-end success is *pⁿ*. The consequence is brutal and non-intuitive: excellent per-step numbers produce mediocre end-to-end numbers as soon as the horizon grows.
+Reliability does not add across steps; it multiplies. If a task requires *n* independent steps that each succeed with probability *p*, and any single failure ruins the outcome, end-to-end success is *pⁿ*. The consequence is brutal and non-intuitive: excellent per-step numbers produce mediocre end-to-end numbers as soon as the **horizon** grows.
 
 | Per-step *p* | 5 steps | 10 steps | 20 steps | 50 steps |
 |---|---|---|---|---|
@@ -59,11 +59,11 @@ Compounding error is the largest term, but the gap between a working demo and a 
 
 **Distribution shift.** Your thirty dev runs were drawn from cases you could imagine. Production traffic has a long tail you could not — the malformed input, the carrier not in the lookup, the SLA clause written before the template. Demo accuracy is measured on the head of the distribution; the P&L is written in the tail.
 
-**Adversarial and hostile inputs.** Some fraction of real input is not merely unusual but constructed — by users gaming the system or by content carrying injected instructions (Ch. 3.5). Zero of your demo cases were adversarial.
+*Adversarial and hostile inputs.* Some fraction of real input is not merely unusual but constructed — by users gaming the system or by content carrying injected instructions (Ch. 3.5). Zero of your demo cases were adversarial.
 
 **Integration surface.** The demo's tools were mocked or hit a clean staging API. Production adds rate limits, timeouts, partial failures, stale caches, and the 200-response-with-empty-body — each an opportunity for a step to "succeed" wrongly.
 
-**Accountability.** In a demo, a wrong answer is a laugh. In production, someone owns the credit that was miscomputed, and someone must reconstruct why (Ch. 4.3). The cost of a single failure is not the token spend; it is the human hour of unwinding it.
+*Accountability.* In a demo, a wrong answer is a laugh. In production, someone owns the credit that was miscomputed, and someone must reconstruct why (Ch. 4.3). The cost of a single failure is not the token spend; it is the human hour of unwinding it.
 
 **Cost and tail latency at scale.** The demo ran once. Production runs the P99, where a retry storm or a straggling tool call turns an acceptable median into an SLA breach (Ch. 4.4–4.5).
 
@@ -71,7 +71,7 @@ Compounding error is the largest term, but the gap between a working demo and a 
 
 There is a deeper break with the software you have shipped before: **same input, different trace.** Even at temperature 0, batching effects, floating-point non-associativity, and silent provider-side model updates mean you cannot assume byte-identical outputs across runs (Ch. 1.1). This is not a bug to suppress; it is a property to design around, and it invalidates habits you have relied on for a career:
 
-You cannot write an assertion that the output equals a golden string — you assert over *properties* and distributions. You cannot reproduce a bug by re-running the input — you must have captured the *original trace*, because the failure may not recur (Ch. 4.3). You cannot certify correctness once at code review — you must characterize behavior continuously (Ch. 4.1). And you cannot promise a regulator that a decision is reproducible — you promise that it is *logged, attributable, and governed*, which is a different and honest claim (Ch. 4.7). Nondeterminism is why verification is continuous rather than one-time, which is the entire economic argument of this curriculum restated: you buy autonomy with verification because there is no compile-time proof to buy it with.
+You cannot write an assertion that the output equals a golden string — you assert over *properties* and distributions. You cannot reproduce a bug by re-running the input — you must have captured the *original trace*, because the failure may not recur (Ch. 4.3). You cannot certify correctness once at code review — you must characterize behavior continuously (Ch. 4.1). And you cannot promise a regulator that a decision is reproducible — you promise that it is *logged, attributable, and governed*, which is a different and honest claim (Ch. 4.7). **Nondeterminism** is why verification is continuous rather than one-time, which is the entire economic argument of this curriculum restated: you buy autonomy with verification because there is no compile-time proof to buy it with.
 
 ### 2.5 The reliability–autonomy frontier: shortening the horizon
 
@@ -92,7 +92,7 @@ What operationally distinguishes a system built for pass^k from one built for th
 
 **You measure the product, not the parts.** Dashboards that show per-step accuracy are comforting and misleading; the number that matters is end-to-end task success on unretried production traffic, segmented by difficulty. If your monitoring cannot show pass^k on the real distribution, it is showing you the demo forever.
 
-**Failures must be loud, not silent.** The logistics agent's core pathology was *silent success bias*: it completed wrongly and reported completion. A production-grade design spends effort making failure *detectable* — verifiers, invariant checks, confidence gates — because a caught failure costs a retry while an uncaught one costs a customer and a human investigation. A system that fails loudly at 60% is often more valuable than one that "succeeds" opaquely at 85%.
+**Failures must be loud, not silent.** The logistics agent's core pathology was **silent success bias**: it completed wrongly and reported completion. A production-grade design spends effort making failure *detectable* — verifiers, invariant checks, confidence gates — because a caught failure costs a retry while an uncaught one costs a customer and a human investigation. A system that fails loudly at 60% is often more valuable than one that "succeeds" opaquely at 85%.
 
 **Horizon is a budgeted quantity.** Mature teams track how many unverified steps any task runs between checkpoints and treat growth in that number as a reliability regression, not a feature. Scope that quietly expands — the agent asked to also handle refunds, then disputes, then chargebacks — lengthens the horizon past the reliability the system earned. Watch step-count-between-checkpoints the way you watch latency.
 

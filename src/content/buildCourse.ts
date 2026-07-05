@@ -24,6 +24,23 @@ export function classifyFile(path: string): FileKind {
   return "unknown";
 }
 
+/**
+ * A term belongs to the first chapter (in canonical reading order) that introduces
+ * it; drop it from every later chapter's glossary so the same term never appears
+ * twice across the course.
+ */
+function dedupeGlossaryGlobally(chapters: Chapter[]): void {
+  const seen = new Set<string>();
+  for (const chapter of chapters) {
+    chapter.glossary = chapter.glossary.filter((g) => {
+      const key = g.term.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+}
+
 function groupIntoParts(chapters: Chapter[]): Part[] {
   const byPart = new Map<number, Chapter[]>();
   for (const ch of chapters) {
@@ -71,6 +88,7 @@ export function buildCourse(files: RawFile[]): Course {
   }
 
   chapters.sort((a, b) => a.part - b.part || a.chapterIndex - b.chapterIndex);
+  dedupeGlossaryGlobally(chapters);
   capstones.sort((a, b) => a.letter.localeCompare(b.letter));
 
   if (!exam) {

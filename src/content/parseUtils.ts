@@ -1,4 +1,4 @@
-import type { ChapterSection, DomainId, ThemeTag } from "./types";
+import type { ChapterSection, DomainId, GlossaryTerm, ThemeTag } from "./types";
 
 /** Strip surrounding markdown emphasis (`*`, `**`) and trim. */
 export function stripEmphasis(text: string): string {
@@ -73,20 +73,113 @@ export function beforeHorizontalRule(markdown: string): string {
 }
 
 const THEME_PATTERNS: Record<ThemeTag, RegExp> = {
-  evals: /\b(eval|evaluat|judge|grader|observab|tracing|reliab)/i,
-  security: /\b(security|identity|guardrail|sandbox|blast[- ]radius|injection|compliance|audit|governance)/i,
-  cost: /\b(cost|latency|budget|econom|token[- ]spend|unit[- ]economics)/i,
-  state: /\b(state|memory|durable|persist|context[- ]engineering|long[- ]horizon)/i,
+  evals: /\b(eval|evaluat|judge|grader|observab|tracing|reliab)/gi,
+  security: /\b(security|identity|guardrail|sandbox|blast[- ]radius|injection|compliance|audit|governance)/gi,
+  cost: /\b(cost|latency|budget|econom|token[- ]spend|unit[- ]economics)/gi,
+  state: /\b(state|memory|durable|persist|context[- ]engineering|long[- ]horizon)/gi,
 };
+
+/**
+ * Minimum keyword-occurrence count required to tag a chapter with a theme.
+ * Generic single-word patterns (e.g. "state", "cost", "audit") appear
+ * incidentally almost everywhere, so a simple presence test tags nearly every
+ * chapter with nearly every theme. These thresholds were derived from an
+ * occurrence-count matrix across all 32 chapters: genuine on-topic chapters
+ * cluster an order of magnitude above incidental mentions.
+ */
+const THEME_THRESHOLDS: Record<ThemeTag, number> = {
+  evals: 20,
+  security: 10,
+  cost: 15,
+  state: 15,
+};
+
+/**
+ * True when a chapter *title* alone names the given theme. Titles are short, so
+ * this is a plain presence test (not the occurrence-count threshold `deriveThemes`
+ * applies to full chapter bodies) — a title only ever mentions a theme once, but
+ * that one mention is deliberate rather than incidental the way body mentions are.
+ */
+export function titleNamesTheme(title: string, theme: ThemeTag): boolean {
+  return new RegExp(THEME_PATTERNS[theme].source, "i").test(title);
+}
 
 /** E10 — derive spiral theme tags from the chapter title + body keywords. */
 export function deriveThemes(title: string, body: string): ThemeTag[] {
   const haystack = `${title}\n${body}`;
   const themes: ThemeTag[] = [];
   for (const [theme, re] of Object.entries(THEME_PATTERNS) as [ThemeTag, RegExp][]) {
-    if (re.test(haystack)) themes.push(theme);
+    const count = haystack.match(re)?.length ?? 0;
+    if (count >= THEME_THRESHOLDS[theme]) themes.push(theme);
   }
   return themes;
+}
+
+const LIST_ITEM_RE = /^\s*(?:[-*]|\d+[.)])\s/;
+const BLOCKQUOTE_PREFIX_RE = /^(?:>\s*)+/;
+const STANDALONE_BOLD_RE = /^\*\*[^*].*\*\*$/;
+const INLINE_BOLD_RE = /\*\*([^*]{2,40})\*\*/g;
+const LEADING_SYMBOLS_RE = /^[^\p{L}\p{N}]+/u;
+const STARTS_WITH_NUMBER_RE = /^[\d$]/;
+const MAX_TERM_WORDS = 4;
+
+/**
+ * True when a captured bold span reads as a glossary term rather than a bolded
+ * statistic or a clause/sentence used for emphasis. Excludes spans starting with
+ * a digit or currency figure (stats like "36%", "97% per-step reliability", "$1.4M"),
+ * spans containing a comma (clause fragments like "Override rate, segmented and
+ * audited"), and spans longer than a few words (full-sentence emphasis). Leading
+ * symbols are stripped before the numeric test so a bounded figure like
+ * "≤12 agent-facing tools" is still recognised as a stat, not a term.
+ */
+function looksLikeTerm(text: string): boolean {
+  if (STARTS_WITH_NUMBER_RE.test(text.replace(LEADING_SYMBOLS_RE, ""))) return false;
+  if (text.includes(",")) return false;
+  if (text.split(/\s+/).length > MAX_TERM_WORDS) return false;
+  return true;
+}
+
+/**
+ * E-glossary — extract key terms introduced inline in a chapter's prose, tagged
+ * with the section they first appear in. Skips markdown-table rows and list-item
+ * headers (bold spans there are labels, not defined terms) and skips standalone
+ * bold doctrine sentences (mirrors the exclusion `parseDoctrine` already applies),
+ * since bolding a whole sentence is emphasis, not a term definition. Leading
+ * blockquote markers ("> ") are stripped first, so a doctrine sentence quoted in a
+ * callout is still recognised as standalone emphasis. A run-in bold label that opens
+ * a *blockquote* callout and ends in a period (the "**Doctrine check.** …" lead every
+ * chapter carries) is likewise treated as an emphasis lead, not a term — while
+ * plain-paragraph lead-in labels (e.g. "Distribution shift.") are still captured, with
+ * their trailing period stripped. Also skips spans that don't `looksLikeTerm` (stats,
+ * clause fragments, long emphasis spans). De-duplicates case-insensitively within the
+ * chapter, keeping the first section a term appears in.
+ */
+export function extractGlossaryTerms(sections: ChapterSection[]): GlossaryTerm[] {
+  const seen = new Set<string>();
+  const terms: GlossaryTerm[] = [];
+  for (const section of sections) {
+    for (const rawLine of section.markdown.split("\n")) {
+      const trimmed = rawLine.trim();
+      const isBlockquote = BLOCKQUOTE_PREFIX_RE.test(trimmed);
+      const line = trimmed.replace(BLOCKQUOTE_PREFIX_RE, "");
+      if (!line || line.startsWith("|") || LIST_ITEM_RE.test(line) || STANDALONE_BOLD_RE.test(line)) {
+        continue;
+      }
+      for (const m of line.matchAll(INLINE_BOLD_RE)) {
+        const raw = (m[1] ?? "").trim();
+        // A bold span that opens a blockquote callout and ends in a period is a
+        // run-in label (e.g. "**Doctrine check.**"), not a defined term.
+        if (isBlockquote && m.index === 0 && raw.endsWith(".")) continue;
+        const term = raw.replace(/\.$/, "");
+        if (!term || !looksLikeTerm(term)) continue;
+        const key = term.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        terms.push({ term, sectionN: section.n });
+      }
+    }
+  }
+  return terms;
 }
 
 /** Parse a GitHub-flavored markdown table into rows of cell arrays (header excluded). */

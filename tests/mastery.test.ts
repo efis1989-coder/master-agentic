@@ -29,6 +29,7 @@ function makeChapter(selfTest: SelfTestClaim[]): Chapter {
     selfTest,
     srsCards: [],
     exercise: null,
+    glossary: [],
   };
 }
 

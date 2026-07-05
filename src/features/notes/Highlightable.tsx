@@ -44,6 +44,8 @@ export function Highlightable({
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [open, setOpen] = useState<OpenNote | null>(null);
   const [draft, setDraft] = useState("");
+  const [hover, setHover] = useState<OpenNote | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Repaint marks whenever the note set changes. Cleanup unwraps them so a re-run
   // (or unmount) never leaves stale <mark> elements behind.
@@ -69,6 +71,7 @@ export function Highlightable({
       const mark = (e.target as HTMLElement).closest?.("mark.note-mark");
       if (mark instanceof HTMLElement && mark.dataset.noteId) {
         setPending(null);
+        setHover(null);
         const p = localPoint(e.clientX, e.clientY);
         setOpen({ id: mark.dataset.noteId, x: p.x, y: p.y });
         return;
@@ -77,12 +80,56 @@ export function Highlightable({
       if (!anchor) return;
       const p = localPoint(e.clientX, e.clientY);
       setOpen(null);
+      setHover(null);
       setPending({ anchor, x: p.x, y: p.y });
     };
 
     host.addEventListener("mouseup", onMouseUp);
     return () => host.removeEventListener("mouseup", onMouseUp);
   }, [localPoint]);
+
+  // Read-only hover preview of a highlight's note text, independent of the
+  // click-to-edit flow above. Skipped for highlights with no note text.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    const clearTimer = () => {
+      if (hoverTimer.current) {
+        clearTimeout(hoverTimer.current);
+        hoverTimer.current = null;
+      }
+    };
+
+    const onMouseOver = (e: MouseEvent) => {
+      const mark = (e.target as HTMLElement).closest?.("mark.note-mark");
+      if (!(mark instanceof HTMLElement) || !mark.dataset.noteId) return;
+      const id = mark.dataset.noteId;
+      const note = (notes ?? []).find((n) => n.id === id);
+      if (!note || !note.note.trim()) return;
+      clearTimer();
+      const rect = mark.getBoundingClientRect();
+      const box = host.getBoundingClientRect();
+      hoverTimer.current = setTimeout(() => {
+        setHover({ id, x: rect.left + rect.width / 2 - box.left, y: rect.bottom - box.top });
+      }, 250);
+    };
+
+    const onMouseOut = (e: MouseEvent) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related?.closest?.("mark.note-mark")) return;
+      clearTimer();
+      setHover(null);
+    };
+
+    host.addEventListener("mouseover", onMouseOver);
+    host.addEventListener("mouseout", onMouseOut);
+    return () => {
+      clearTimer();
+      host.removeEventListener("mouseover", onMouseOver);
+      host.removeEventListener("mouseout", onMouseOut);
+    };
+  }, [notes]);
 
   // Dismiss the popover on outside pointerdown or Escape.
   useEffect(() => {
@@ -165,6 +212,15 @@ export function Highlightable({
                 onClick={() => void updateNote(openNote.id, { color: c })}
               />
             ))}
+            <button
+              type="button"
+              className={styles.swatchNone}
+              aria-label="Remove highlight"
+              onClick={() => {
+                void deleteNote(openNote.id);
+                setOpen(null);
+              }}
+            />
           </div>
           <textarea
             className={styles.input}
@@ -173,16 +229,6 @@ export function Highlightable({
             onChange={(e) => setDraft(e.target.value)}
           />
           <div className={styles.popActions}>
-            <button
-              type="button"
-              className={styles.link}
-              onClick={() => {
-                void deleteNote(openNote.id);
-                setOpen(null);
-              }}
-            >
-              Delete
-            </button>
             <button
               type="button"
               className={styles.linkPrimary}
@@ -196,6 +242,18 @@ export function Highlightable({
           </div>
         </div>
       )}
+
+      {hover &&
+        !open &&
+        (() => {
+          const note = (notes ?? []).find((n) => n.id === hover.id);
+          if (!note) return null;
+          return (
+            <div className={styles.hoverPreview} style={{ left: hover.x, top: hover.y }}>
+              {note.note}
+            </div>
+          );
+        })()}
     </div>
   );
 }

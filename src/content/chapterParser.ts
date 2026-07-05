@@ -9,6 +9,7 @@ import type {
 import {
   beforeHorizontalRule,
   deriveThemes,
+  extractGlossaryTerms,
   fileSlug,
   findSection,
   isDomainId,
@@ -312,5 +313,6 @@ export function parseChapter(raw: string, path: string): Chapter {
     selfTest: s7 ? parseSelfTest(s7.markdown, id) : [],
     srsCards: s8 ? parseSrsCards(s8.markdown, id) : [],
     exercise: s6 ? parseExercise(s6.markdown, id) : null,
+    glossary: extractGlossaryTerms(sections),
   };
 }

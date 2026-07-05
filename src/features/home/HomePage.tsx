@@ -32,6 +32,15 @@ export function HomePage(): React.JSX.Element {
           </Link>
         )}
 
+        {!resume && (
+          <ul className={styles.intro}>
+            <li>Read chapters in order, or jump around using the map</li>
+            <li>Select any text to highlight it and attach a margin note</li>
+            <li>Self-test with exercises, then lock it in with spaced review</li>
+            <li>The concept map and doctrine glossary show how it all connects</li>
+          </ul>
+        )}
+
         <div className={styles.stats}>
           <div className={styles.stat}>
             <span className={styles.statNum}>{course.chapters.length}</span>

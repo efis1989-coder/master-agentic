@@ -26,7 +26,7 @@ The industry's most durable distinction comes from Anthropic's *Building Effecti
 >
 > An **agent** is a system where the model *dynamically directs its own process* — deciding which tools to use, in what order, and when the task is done.
 
-The distinction is not about intelligence or capability. It is about **who owns control flow**. In a workflow, your code owns it. In an agent, the model owns it. Everything else — cost profile, failure modes, testability, audit story — cascades from that single design decision.
+The distinction is not about intelligence or capability. It is about *who owns control flow*. In a workflow, your code owns it. In an agent, the model owns it. Everything else — cost profile, failure modes, testability, audit story — cascades from that single design decision.
 
 And it is a spectrum, not a binary:
 
@@ -108,13 +108,13 @@ Between "single call" and "agent" lives a rich middle: the five workflow pattern
 
 What actually changes, operationally, as you move right on the spectrum? Four cost curves bend upward together:
 
-**Verification surface.** A workflow needs its branches tested. An agent needs its *behavior distribution* characterized — eval suites, regression gates, online sampling (Part IV). Budget rule of thumb from mature teams: for a production agent in a consequential domain, expect evaluation and observability to consume an engineering effort comparable to the agent itself. If that sounds unaffordable, the task belongs further left on the spectrum.
+*Verification surface.* A workflow needs its branches tested. An agent needs its *behavior distribution* characterized — eval suites, regression gates, online sampling (Part IV). Budget rule of thumb from mature teams: for a production agent in a consequential domain, expect evaluation and observability to consume an engineering effort comparable to the agent itself. If that sounds unaffordable, the task belongs further left on the spectrum.
 
-**Unit economics.** In the invoice case: the deterministic match cost ~$0.002 per invoice in compute; the agent averaged $0.19 (multi-turn reasoning, tool calls, retries) plus judge sampling plus a share of human review labor. At 11,000 invoices/month, pushing the deterministic 83% through the agent burned roughly $20K/year to make those cases *slower and less reliable*. Always compute cost per *resolved* task, segmented by case difficulty — blended averages hide exactly this pathology.
+*Unit economics.* In the invoice case: the deterministic match cost ~$0.002 per invoice in compute; the agent averaged $0.19 (multi-turn reasoning, tool calls, retries) plus judge sampling plus a share of human review labor. At 11,000 invoices/month, pushing the deterministic 83% through the agent burned roughly $20K/year to make those cases *slower and less reliable*. Always compute cost per *resolved* task, segmented by case difficulty — blended averages hide exactly this pathology.
 
-**Debuggability.** A workflow failure points at a branch. An agent failure requires trace archaeology: which turn, which tool result, which piece of context sent it sideways. Until you have the tracing discipline of Chapter 4.3, every agent incident costs hours. This is a real operating cost; price it in.
+*Debuggability.* A workflow failure points at a branch. An agent failure requires trace archaeology: which turn, which tool result, which piece of context sent it sideways. Until you have the tracing discipline of Chapter 4.3, every agent incident costs hours. This is a real operating cost; price it in.
 
-**On-call semantics.** Workflows fail loudly and locally. Agents fail *creatively* — the failure mode set is open-ended, which is why containment (Ch. 3.4) is architectural, not optional. The left side of the spectrum pages you rarely and legibly; the right side pages you rarely and *illegibly*, which is worse.
+*On-call semantics.* Workflows fail loudly and locally. Agents fail *creatively* — the failure mode set is open-ended, which is why containment (Ch. 3.4) is architectural, not optional. The left side of the spectrum pages you rarely and legibly; the right side pages you rarely and *illegibly*, which is worse.
 
 > **Doctrine check.** At every spectrum position, ask: where does the deterministic core sit? Even a fully agentic system in this curriculum's philosophy has one — the seam where agent *proposals* become validated, idempotent, attributable *effects* (Ch. 3.1). If you cannot point to that seam on the architecture diagram, the design is not done.
 
@@ -136,7 +136,7 @@ What actually changes, operationally, as you move right on the spectrum? Four co
 
 Mapping the spectrum onto Claude's stack (verify specifics against current docs at [docs.claude.com](https://docs.claude.com) — mechanics move; the mapping doesn't):
 
-A **single call** is one Messages API request, optionally with tool definitions the model may invoke once. A **workflow** is your code making multiple Claude calls along paths you control — the model never sees the whole plan. A **constrained agent** is Claude in a loop: the API returns a tool-use request, your runtime executes it and returns the result, and the loop continues until Claude signals completion or your budget stops it — with MCP standardizing how those tools are discovered and served. The **Claude Agent SDK** and **Claude Code** are reference implementations of that loop with containment built in: permission prompts, sandboxing options, and plan-preview modes that are essentially Chapter 3.3–3.4 shipped as product. Studying how Claude Code asks permission before destructive actions is a free masterclass in earned autonomy UX.
+A *single call* is one Messages API request, optionally with tool definitions the model may invoke once. A **workflow** is your code making multiple Claude calls along paths you control — the model never sees the whole plan. A **constrained agent** is Claude in a loop: the API returns a tool-use request, your runtime executes it and returns the result, and the loop continues until Claude signals completion or your budget stops it — with MCP standardizing how those tools are discovered and served. The **Claude Agent SDK** and **Claude Code** are reference implementations of that loop with containment built in: permission prompts, sandboxing options, and plan-preview modes that are essentially Chapter 3.3–3.4 shipped as product. Studying how Claude Code asks permission before destructive actions is a free masterclass in **earned autonomy** UX.
 
 ---
 

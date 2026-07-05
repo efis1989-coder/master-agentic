@@ -57,6 +57,25 @@
   outline-offset: 1px;
 }
 
+.swatchNone {
+  background: var(--color-surface);
+  position: relative;
+}
+
+.swatchNone::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    var(--color-danger) calc(50% - 1px),
+    var(--color-danger) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
 .input {
   width: 100%;
   min-height: 60px;
@@ -97,4 +116,20 @@
 .link:hover,
 .linkPrimary:hover {
   text-decoration: underline;
+}
+
+.hoverPreview {
+  position: absolute;
+  z-index: 20;
+  transform: translate(-50%, 8px);
+  max-width: 240px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--color-text);
+  pointer-events: none;
 }
