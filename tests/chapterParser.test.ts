@@ -68,6 +68,12 @@ describe("chapter skeleton (every chapter)", () => {
     }
   });
 
+  it("never leaks a raw markdown emphasis marker into the skipped question", () => {
+    for (const ch of course.chapters) {
+      expect(ch.incident?.skippedQuestion, `${ch.id} skippedQuestion`).not.toContain("*");
+    }
+  });
+
   it("derives header metadata (domain + reading time)", () => {
     for (const ch of course.chapters) {
       expect(ch.domain).toMatch(/^D[1-6]$/);

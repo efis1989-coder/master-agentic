@@ -111,12 +111,19 @@ export function ReaderPage(): React.JSX.Element {
       {chapter.sections.map((section) => {
         let body: React.JSX.Element;
         if (section.n === 1 && chapter.incident) {
-          body = <IncidentHook title={section.title} incident={chapter.incident} />;
+          body = (
+            <IncidentHook key={chapter.id} title={section.title} incident={chapter.incident} />
+          );
         } else if (section.n === 6 && chapter.exercise) {
           body = <DesignExerciseCard title={section.title} exercise={chapter.exercise} />;
         } else if (section.n === 7 && chapter.selfTest.length > 0) {
           body = (
-            <SelfTestQuiz chapterId={chapter.id} title={section.title} claims={chapter.selfTest} />
+            <SelfTestQuiz
+              key={chapter.id}
+              chapterId={chapter.id}
+              title={section.title}
+              claims={chapter.selfTest}
+            />
           );
         } else if (section.n === 8 && chapter.srsCards.length > 0) {
           body = (
@@ -140,7 +147,9 @@ export function ReaderPage(): React.JSX.Element {
         );
       })}
 
-      {chapter.doctrine && <TeachBack chapterId={chapter.id} doctrine={chapter.doctrine} />}
+      {chapter.doctrine && (
+        <TeachBack key={chapter.id} chapterId={chapter.id} doctrine={chapter.doctrine} />
+      )}
 
       <nav className={styles.pager} aria-label="Chapter navigation">
         {prev ? (
