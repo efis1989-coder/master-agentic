@@ -325,11 +325,21 @@ export function parseExercise(sectionMd: string, chapterId: string): DesignExerc
   return { id: `${chapterId}/exercise`, prompt, reviewStandard, check, sampleSolution };
 }
 
-/** E1 — §1 incident cold open + its closing "what got skipped?" question. */
+/**
+ * E1 — §1 incident cold open + its closing "what got skipped?" question.
+ * `skippedQuestion` is rendered as plain text (never through the Markdown
+ * renderer), so every `*` is stripped outright rather than via
+ * `stripInlineEmphasis`: that helper only unwraps a single balanced
+ * `**...**`/`*...*` span, but authored closers here sometimes nest emphasis
+ * (e.g. `**...*term*...?**`), which would otherwise leave a dangling marker
+ * in the extracted question. The raw `markdown` field is untouched.
+ */
 function parseIncident(sectionMd: string): IncidentHook {
   const md = beforeHorizontalRule(sectionMd);
   const questions = md.match(/[^.!?]*\?/g) ?? [];
-  const skippedQuestion = questions.length ? (questions[questions.length - 1] ?? "").trim() : null;
+  const skippedQuestion = questions.length
+    ? (questions[questions.length - 1] ?? "").replace(/\*/g, "").trim()
+    : null;
   return { markdown: md, skippedQuestion };
 }
 

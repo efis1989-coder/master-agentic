@@ -52,6 +52,30 @@ describe("ReaderPage", () => {
     expect(screen.getByText(/derives the answer from first principles/)).toBeInTheDocument();
   });
 
+  it("resets the incident hook's reveal state when navigating to another chapter", async () => {
+    const index = course.chapters.findIndex((c) => c.incident);
+    const current = course.chapters[index];
+    const next = course.chapters[index + 1];
+    expect(current).toBeDefined();
+    expect(next).toBeDefined();
+    if (!current || !next) return;
+
+    renderAt(current.id);
+
+    await userEvent.type(
+      screen.getByPlaceholderText("Your one-line diagnosis…"),
+      "my guess for this chapter",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reveal the thread" }));
+    expect(screen.getByRole("button", { name: "Revealed" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("link", { name: /Next →/ }));
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(next.title);
+    expect(screen.getByRole("button", { name: "Reveal the thread" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Your one-line diagnosis…")).toHaveValue("");
+  });
+
   it("renders a not-found state for an unknown chapter id", () => {
     renderAt("ch-does-not-exist");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Chapter not found");
